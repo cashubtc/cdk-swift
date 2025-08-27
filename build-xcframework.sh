@@ -79,10 +79,9 @@ log_info "Building CDK Swift bindings..."
 log_info "Cleaning previous builds..."
 rm -rf target/
 rm -rf "$FRAMEWORK_NAME.xcframework"
-# Clean generated files
-rm -rf Sources/$SWIFT_PACKAGE_NAME/CashuDevKit.swift
-rm -rf Sources/$SWIFT_PACKAGE_NAME/CashuDevKitFFI.h
-rm -rf Sources/$SWIFT_PACKAGE_NAME/CashuDevKitFFI.modulemap
+# Clean generated files to ensure fresh bindings
+rm -rf Sources/$SWIFT_PACKAGE_NAME/*.swift
+rm -rf Sources/CashuDevKitFFI/
 
 # Add Rust targets
 log_info "Adding Rust targets..."
@@ -93,8 +92,8 @@ done
 # Ensure source directory exists
 mkdir -p Sources/$SWIFT_PACKAGE_NAME/
 
-# Generate Swift bindings
-log_info "Generating Swift bindings..."
+# Generate Swift bindings from latest CDK code
+log_info "Generating Swift bindings from latest CDK code..."
 bash ./generate-bindings.sh
 
 # Build for all targets

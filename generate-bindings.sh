@@ -39,21 +39,25 @@ fi
 log_info "Generating Swift bindings from CDK FFI crate..."
 log_info "CDK directory: $CDK_DIR"
 
-# Build the CDK FFI library
-log_info "Building CDK FFI library..."
+# Get host platform target
+HOST_TARGET=$(rustc -vV | sed -n 's/host: //p')
+log_info "Building CDK FFI library for host platform: $HOST_TARGET"
+
+# Build the CDK FFI library explicitly for host platform
 cd "$CDK_DIR/crates/cdk-ffi"
-cargo build --release
+cargo build --release --target "$HOST_TARGET"
 
 # Check if library was built successfully
-if [ ! -f "../../target/release/libcdk_ffi.dylib" ]; then
-    echo "❌ Failed to build libcdk_ffi.dylib"
+DYLIB_PATH="../../target/$HOST_TARGET/release/libcdk_ffi.dylib"
+if [ ! -f "$DYLIB_PATH" ]; then
+    echo "❌ Failed to build libcdk_ffi.dylib at $DYLIB_PATH"
     exit 1
 fi
 
 # Generate Swift bindings
 log_info "Generating Swift bindings..."
 cargo run --bin uniffi-bindgen generate \
-    --library ../../target/release/libcdk_ffi.dylib \
+    --library "$DYLIB_PATH" \
     --language swift \
     --out-dir "$SWIFT_OUTPUT_DIR"
 
