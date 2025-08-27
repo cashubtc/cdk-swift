@@ -36,8 +36,13 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios-sim,aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-darwin
+
+      - name: Add Rust targets
+        run: |
+          rustup target add aarch64-apple-ios
+          rustup target add aarch64-apple-ios-sim
+          rustup target add x86_64-apple-ios
+          rustup target add aarch64-apple-darwin
 
       - name: Install cargo-lipo
         run: cargo install cargo-lipo
