@@ -1,0 +1,123 @@
+name: Publish Swift Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version (e.g., 0.1.0)'
+        required: true
+        type: string
+      cdk_repo:
+        description: 'CDK repository (owner/repo format)'
+        required: true
+        default: 'davidcaseria/cdk'
+        type: string
+      cdk_ref:
+        description: 'CDK repository ref (branch/tag)'
+        required: true
+        default: 'ffi'
+        type: string
+
+jobs:
+  build-publish-xcframework:
+    runs-on: macos-14
+    steps:
+      - name: Checkout cdk-swift
+        uses: actions/checkout@v4
+        with:
+          path: cdk-swift
+
+      - name: Checkout CDK
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.cdk_repo }}
+          ref: ${{ github.event.inputs.cdk_ref }}
+          path: cdk
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim,aarch64-apple-ios,x86_64-apple-ios
+
+      - name: Install cargo-lipo
+        run: cargo install cargo-lipo
+
+      - name: Build XCFramework
+        working-directory: cdk-swift
+        run: |
+          export CDK_DIR=${{ github.workspace }}/cdk
+          chmod +x build-xcframework.sh
+          ./build-xcframework.sh
+
+      - name: Zip XCFramework
+        working-directory: cdk-swift
+        run: |
+          zip -r cdkFFI.xcframework.zip cdkFFI.xcframework
+          echo "XCFRAMEWORK_ZIP=cdkFFI.xcframework.zip" >> $GITHUB_ENV
+
+      - name: Compute checksum
+        working-directory: cdk-swift
+        run: |
+          CHECKSUM=$(swift package compute-checksum cdkFFI.xcframework.zip)
+          echo "CHECKSUM=$CHECKSUM" >> $GITHUB_ENV
+          echo "Checksum: $CHECKSUM"
+
+      - name: Update Package.swift
+        working-directory: cdk-swift
+        run: |
+          # Update the Package.swift with the new version and checksum
+          VERSION=${{ github.event.inputs.version }}
+          CHECKSUM=${{ env.CHECKSUM }}
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/cdkFFI.xcframework.zip"
+          
+          # Read the current Package.swift
+          PACKAGE_CONTENT=$(cat Package.swift)
+          
+          # Update the binary target URL and checksum
+          # This assumes the Package.swift has a binaryTarget with url and checksum
+          sed -i '' "s|url: \".*cdkFFI.xcframework.zip\"|url: \"${DOWNLOAD_URL}\"|g" Package.swift
+          sed -i '' "s|checksum: \".*\"|checksum: \"${CHECKSUM}\"|g" Package.swift
+          
+          echo "Updated Package.swift with:"
+          echo "  URL: ${DOWNLOAD_URL}"
+          echo "  Checksum: ${CHECKSUM}"
+
+      - name: Commit changes
+        working-directory: cdk-swift
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Package.swift
+          git commit -m "Update Package.swift for version ${{ github.event.inputs.version }}"
+
+      - name: Create tag
+        working-directory: cdk-swift
+        run: |
+          git tag -a "v${{ github.event.inputs.version }}" -m "Version ${{ github.event.inputs.version }}"
+
+      - name: Push changes
+        working-directory: cdk-swift
+        run: |
+          git push origin main
+          git push origin "v${{ github.event.inputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: Version ${{ github.event.inputs.version }}
+          body: |
+            ## Changes
+            - Built with CDK from ${{ github.event.inputs.cdk_repo }}@${{ github.event.inputs.cdk_ref }}
+            
+            ## Installation
+            Add cdk-swift to your Swift Package Manager dependencies:
+            ```swift
+            .package(url: "https://github.com/${{ github.repository }}", from: "${{ github.event.inputs.version }}")
+            ```
+          files: |
+            cdk-swift/cdkFFI.xcframework.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
