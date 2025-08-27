@@ -37,12 +37,19 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add Rust targets
+      - name: Install just
+        uses: taiki-e/install-action@just
+
+      - name: Check tools and add Rust targets
+        working-directory: cdk-swift
         run: |
+          just check-tools
           rustup target add aarch64-apple-ios
           rustup target add aarch64-apple-ios-sim
           rustup target add x86_64-apple-ios
           rustup target add aarch64-apple-darwin
+          # Verify targets are installed
+          rustup target list --installed
 
       - name: Install cargo-lipo
         run: cargo install cargo-lipo
@@ -51,8 +58,9 @@ jobs:
         working-directory: cdk-swift
         run: |
           export CDK_DIR=${{ github.workspace }}/cdk
-          chmod +x build-xcframework.sh
-          ./build-xcframework.sh
+          just check-cdk
+          just generate
+          just build
 
       - name: Zip XCFramework
         working-directory: cdk-swift
