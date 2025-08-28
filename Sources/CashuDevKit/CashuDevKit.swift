@@ -1949,6 +1949,14 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func melt(quoteId: String) throws  -> Melted
     
     /**
+     * Get a quote for a BIP353 melt
+     *
+     * This method resolves a BIP353 address (e.g., "alice@example.com") to a Lightning offer
+     * and then creates a melt quote for that offer.
+     */
+    func meltBip353Quote(bip353Address: String, amountMsat: Amount) throws  -> MeltQuote
+    
+    /**
      * Get a quote for a bolt12 melt
      */
     func meltBolt12Quote(request: String, options: MeltOptions?) throws  -> MeltQuote
@@ -2258,6 +2266,21 @@ open func melt(quoteId: String)throws  -> Melted  {
     return try  FfiConverterTypeMelted_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
     uniffi_cdk_ffi_fn_method_wallet_melt(self.uniffiClonePointer(),
         FfiConverterString.lower(quoteId),$0
+    )
+})
+}
+    
+    /**
+     * Get a quote for a BIP353 melt
+     *
+     * This method resolves a BIP353 address (e.g., "alice@example.com") to a Lightning offer
+     * and then creates a melt quote for that offer.
+     */
+open func meltBip353Quote(bip353Address: String, amountMsat: Amount)throws  -> MeltQuote  {
+    return try  FfiConverterTypeMeltQuote_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_wallet_melt_bip353_quote(self.uniffiClonePointer(),
+        FfiConverterString.lower(bip353Address),
+        FfiConverterTypeAmount_lower(amountMsat),$0
     )
 })
 }
@@ -10619,6 +10642,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_melt() != 17941) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_melt_bip353_quote() != 63746) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_melt_bolt12_quote() != 31660) {

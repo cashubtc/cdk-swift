@@ -804,6 +804,11 @@ RustBuffer uniffi_cdk_ffi_fn_method_wallet_list_transactions(void*_Nonnull ptr, 
 RustBuffer uniffi_cdk_ffi_fn_method_wallet_melt(void*_Nonnull ptr, RustBuffer quote_id, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CDK_FFI_FN_METHOD_WALLET_MELT_BIP353_QUOTE
+#define UNIFFI_FFIDEF_UNIFFI_CDK_FFI_FN_METHOD_WALLET_MELT_BIP353_QUOTE
+RustBuffer uniffi_cdk_ffi_fn_method_wallet_melt_bip353_quote(void*_Nonnull ptr, RustBuffer bip353_address, RustBuffer amount_msat, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_CDK_FFI_FN_METHOD_WALLET_MELT_BOLT12_QUOTE
 #define UNIFFI_FFIDEF_UNIFFI_CDK_FFI_FN_METHOD_WALLET_MELT_BOLT12_QUOTE
 RustBuffer uniffi_cdk_ffi_fn_method_wallet_melt_bolt12_quote(void*_Nonnull ptr, RustBuffer request, RustBuffer options, RustCallStatus *_Nonnull out_status
@@ -2231,6 +2236,12 @@ uint16_t uniffi_cdk_ffi_checksum_method_wallet_list_transactions(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_CDK_FFI_CHECKSUM_METHOD_WALLET_MELT
 #define UNIFFI_FFIDEF_UNIFFI_CDK_FFI_CHECKSUM_METHOD_WALLET_MELT
 uint16_t uniffi_cdk_ffi_checksum_method_wallet_melt(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CDK_FFI_CHECKSUM_METHOD_WALLET_MELT_BIP353_QUOTE
+#define UNIFFI_FFIDEF_UNIFFI_CDK_FFI_CHECKSUM_METHOD_WALLET_MELT_BIP353_QUOTE
+uint16_t uniffi_cdk_ffi_checksum_method_wallet_melt_bip353_quote(void
     
 );
 #endif

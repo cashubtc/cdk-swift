@@ -36,20 +36,11 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios, x86_64-apple-darwin
 
       - name: Install just
         uses: taiki-e/install-action@just
-
-      - name: Check tools and add Rust targets
-        working-directory: cdk-swift
-        run: |
-          just check-tools
-          rustup target add aarch64-apple-ios
-          rustup target add aarch64-apple-ios-sim
-          rustup target add x86_64-apple-ios
-          rustup target add aarch64-apple-darwin
-          # Verify targets are installed
-          rustup target list --installed
 
       - name: Install cargo-lipo
         run: cargo install cargo-lipo
@@ -57,9 +48,8 @@ jobs:
       - name: Build XCFramework
         working-directory: cdk-swift
         run: |
-          export CDK_DIR=${{ github.workspace }}/cdk
-          just check-cdk
-          just build
+          # The build script expects to be run from cdk-swift and will cd to ../cdk
+          bash ./build-xcframework.sh
 
       - name: Zip XCFramework
         working-directory: cdk-swift
@@ -99,8 +89,8 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add Package.swift
-          git commit -m "Update Package.swift for version ${{ github.event.inputs.version }}"
+          git add .
+          git commit -m "Update to version ${{ github.event.inputs.version }}"
 
       - name: Create tag
         working-directory: cdk-swift

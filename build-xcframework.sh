@@ -12,8 +12,15 @@ NAME="cdkFFI"
 STATIC_LIB_NAME="libcdk_ffi.a"
 NEW_HEADER_DIR="../cdk/target/include"
 
-# Move to cdk directory for building
+# Move to cdk directory first to use its rust-toolchain
 cd ../cdk/ || exit
+
+# Add required rust targets to the toolchain used by CDK
+rustup target add aarch64-apple-ios      # iOS arm64
+rustup target add x86_64-apple-ios       # iOS x86_64
+rustup target add aarch64-apple-ios-sim  # simulator mac M1
+rustup target add aarch64-apple-darwin   # mac M1
+rustup target add x86_64-apple-darwin    # mac x86_64
 
 # Build cdk-ffi rust lib for apple targets
 cargo build --package cdk-ffi --release --target x86_64-apple-darwin

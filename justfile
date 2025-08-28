@@ -19,7 +19,7 @@ generate:
 [group("Build")]
 [doc("Build the library with full cross-platform support.")]
 build:
- CDK_DIR={{CDK_DIR}} bash ./build-xcframework.sh
+ bash ./build-xcframework.sh
 
 [group("Build")]
 [doc("Build the library for native platform only (faster for development).")]
