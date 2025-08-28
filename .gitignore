@@ -88,6 +88,7 @@ Cargo.lock
 # Binary frameworks should not be committed to source control
 *.xcframework/
 cdkFFI.xcframework/
+cdkFFI.xcframework.zip
 
 # macOS
 .DS_Store
