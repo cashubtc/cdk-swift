@@ -85,6 +85,16 @@ jobs:
           echo "  URL: ${DOWNLOAD_URL}"
           echo "  Checksum: ${CHECKSUM}"
 
+      - name: Update README with version
+        working-directory: cdk-swift
+        run: |
+          VERSION=${{ github.event.inputs.version }}
+          
+          # Update the version in README.md Swift Package Manager example
+          sed -i '' "s|from: \"[0-9.]*\"|from: \"${VERSION}\"|g" README.md
+          
+          echo "Updated README.md with version: ${VERSION}"
+
       - name: Commit changes
         working-directory: cdk-swift
         run: |

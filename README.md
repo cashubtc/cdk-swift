@@ -87,17 +87,18 @@ print("Generated mnemonic: \(mnemonic)")
 ### Create a Wallet
 
 ```swift
-// Configure wallet
-let config = WalletConfig(
-    workDir: "/path/to/wallet/data",
-    targetProofCount: nil
-)
+// Configure wallet  
+let config = WalletConfig(targetProofCount: nil)
+
+// Create database
+let db = try WalletSqliteDatabase(workDir: "/path/to/wallet/data")
 
 // Create wallet with generated mnemonic
-let wallet = try await Wallet(
+let wallet = try Wallet(
     mintUrl: "https://mint.example.com/",
     unit: CurrencyUnit.sat,
     mnemonic: mnemonic,
+    db: db,
     config: config
 )
 ```
@@ -105,7 +106,7 @@ let wallet = try await Wallet(
 ### Get Mint Information
 
 ```swift
-let mintInfo = try await wallet.getMintInfo()
+let mintInfo = try wallet.getMintInfo()
 if let info = mintInfo {
     print("Mint name: \(info.name ?? "Unknown")")
     print("Supported units: \(info.nuts)")
@@ -117,14 +118,14 @@ if let info = mintInfo {
 ```swift
 // Create a mint quote
 let amount = Amount(value: 1000) // 1000 sats
-let quote = try await wallet.mintQuote(
+let quote = try wallet.mintQuote(
     amount: amount, 
     description: "My payment"
 )
 
 // Mint tokens after paying the quote
-let proofs = try await wallet.mint(
-    quoteId: quote.id(),
+let proofs = try wallet.mint(
+    quoteId: quote.id,
     amountSplitTarget: SplitTarget.none,
     spendingConditions: nil
 )
@@ -147,13 +148,13 @@ let sendOptions = SendOptions(
 )
 
 // Prepare the send
-let preparedSend = try await wallet.prepareSend(
+let preparedSend = try wallet.prepareSend(
     amount: Amount(value: 500),
     options: sendOptions
 )
 
 // Get the token to share
-let token = try await preparedSend.confirm(memo: "Coffee payment")
+let token = try preparedSend.confirm(memo: "Coffee payment")
 print("Token to send: \(token)")
 ```
 
@@ -169,7 +170,7 @@ let receiveOptions = ReceiveOptions(
 )
 
 // Receive the token
-let receivedAmount = try await wallet.receive(
+let receivedAmount = try wallet.receive(
     token: token,
     options: receiveOptions
 )
@@ -181,33 +182,33 @@ print("Received: \(receivedAmount.value) sats")
 
 ```swift
 // List all transactions
-let allTransactions = try await wallet.listTransactions(direction: nil)
+let allTransactions = try wallet.listTransactions(direction: nil)
 
 // List only incoming transactions (mint, receive)
-let incomingTransactions = try await wallet.listTransactions(direction: .incoming)
+let incomingTransactions = try wallet.listTransactions(direction: .incoming)
 
 // List only outgoing transactions (send, melt)
-let outgoingTransactions = try await wallet.listTransactions(direction: .outgoing)
+let outgoingTransactions = try wallet.listTransactions(direction: .outgoing)
 
 // Get a specific transaction by ID
 let transactionId = TransactionId(hex: "your_transaction_id_here")
-let transaction = try await wallet.getTransaction(id: transactionId)
+let transaction = try wallet.getTransaction(id: transactionId)
 
 // Revert a transaction if needed
-try await wallet.revertTransaction(id: transactionId)
+try wallet.revertTransaction(id: transactionId)
 ```
 
 ### Melt Tokens (Lightning Payments)
 
 ```swift
 let invoice = "lnbc1000n1..." // Lightning invoice
-let meltQuote = try await wallet.meltQuote(
+let meltQuote = try wallet.meltQuote(
     request: invoice,
     options: nil
 )
 
 // Pay the Lightning invoice
-let melted = try await wallet.melt(quoteId: meltQuote.id())
+let melted = try wallet.melt(quoteId: meltQuote.id)
 print("Payment sent, preimage: \(melted.preimage ?? "None")")
 ```
 
@@ -215,10 +216,11 @@ print("Payment sent, preimage: \(melted.preimage ?? "None")")
 
 ```swift
 do {
-    let wallet = try await Wallet(
+    let wallet = try Wallet(
         mintUrl: "https://mint.example.com/",
         unit: CurrencyUnit.sat,
         mnemonic: mnemonic,
+        db: db,
         config: config
     )
 } catch let error as FfiError {
@@ -265,24 +267,6 @@ just generate
 just build-native
 just test
 ```
-
-## Troubleshooting
-
-### Package Installation Issues
-
-If you encounter "Fatal error adding the package" or binary target issues:
-
-1. **Verify you're using a valid release version** from: https://github.com/cashubtc/cdk-swift/releases
-2. **Clean Xcode's package cache**: Xcode → File → Packages → Reset Package Caches
-3. **Try restarting Xcode** and re-adding the package
-
-### Module Import Errors
-
-If you see "Module not found" errors:
-
-1. **Verify the package is properly added** to your target dependencies
-2. **Ensure you're importing the correct module name**: `import CashuDevKit`
-3. **Check your deployment target** meets the minimum requirements (iOS 15.0+, macOS 12.0+)
 
 ## License
 

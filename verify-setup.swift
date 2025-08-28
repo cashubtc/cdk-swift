@@ -19,8 +19,8 @@ do {
     let amount = Amount(value: 1000)
     print("✅ Amount type works: \(amount.value)")
     
-    let config = WalletConfig(workDir: "/tmp/test", targetProofCount: nil)
-    print("✅ WalletConfig type works: \(config.workDir)")
+    let config = WalletConfig(targetProofCount: nil)
+    print("✅ WalletConfig type works")
     
     print("\n🎉 Setup verification completed successfully!")
     print("📖 Check the README.md for usage examples")
