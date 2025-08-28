@@ -30,7 +30,7 @@ cargo build --package cdk-ffi --profile release-smaller --target aarch64-apple-i
 cargo build --package cdk-ffi --profile release-smaller --target aarch64-apple-ios-sim
 
 # Build cdk-ffi Swift bindings and put in cdk-swift Sources
-cargo run --bin uniffi-bindgen generate --library ./target/aarch64-apple-ios/release-smaller/libcdk_ffi.dylib --language swift --out-dir ../cdk-swift/Sources/CashuDevKit --no-format
+cargo run -p cdk-ffi --bin uniffi-bindgen generate --library ./target/aarch64-apple-ios/release-smaller/libcdk_ffi.dylib --language swift --out-dir ../cdk-swift/Sources/CashuDevKit --no-format
 
 # Combine cdk-ffi static libs for universal binaries via lipo tool
 mkdir -p target/lipo-ios-sim/release-smaller
