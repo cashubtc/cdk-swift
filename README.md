@@ -14,7 +14,7 @@ Add the following to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/cashubtc/cdk-swift.git", from: "0.0.2")
+    .package(url: "https://github.com/cashubtc/cdk-swift.git", from: "0.0.3")
 ]
 ```
 
