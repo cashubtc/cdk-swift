@@ -13,7 +13,7 @@ final class CashuDevKitTests: XCTestCase {
     
     private func createTestDatabase() async throws -> WalletSqliteDatabase {
         let tempDir = NSTemporaryDirectory() + UUID().uuidString
-        return try WalletSqliteDatabase(workDir: tempDir)
+        return try await WalletSqliteDatabase(workDir: tempDir)
     }
     
     private func createTestWallet() async throws -> Wallet {
@@ -21,7 +21,7 @@ final class CashuDevKitTests: XCTestCase {
         let mnemonic = try generateMnemonic()
         let db = try await createTestDatabase()
         
-        return try Wallet(
+        return try await Wallet(
             mintUrl: testMintUrl,
             unit: testUnit,
             mnemonic: mnemonic,
@@ -46,7 +46,7 @@ final class CashuDevKitTests: XCTestCase {
         
         // Get mint info (this tests network connectivity to the mint)
         do {
-            let mintInfo = try wallet.getMintInfo()
+            let mintInfo = try await wallet.getMintInfo()
             // If successful, verify we got some info back
             if let info = mintInfo {
                 print("Mint info retrieved successfully: \(info)")
@@ -67,7 +67,7 @@ final class CashuDevKitTests: XCTestCase {
         let amount = Amount(value: 1000) // 1000 sats
         
         do {
-            let quote = try wallet.mintQuote(amount: amount, description: nil)
+            let quote = try await wallet.mintQuote(amount: amount, description: nil)
             
             // Verify quote properties
             XCTAssertNotNil(quote)
@@ -91,7 +91,7 @@ final class CashuDevKitTests: XCTestCase {
         let testInvoice = "lnbc1000n1pjqxz8xpp5..."
         
         do {
-            let quote = try wallet.meltQuote(request: testInvoice, options: nil)
+            let quote = try await wallet.meltQuote(request: testInvoice, options: nil)
             
             // Verify quote properties
             XCTAssertNotNil(quote)
@@ -114,7 +114,7 @@ final class CashuDevKitTests: XCTestCase {
         let states: [ProofState] = [.unspent, .spent, .pending]
         
         do {
-            let proofs = try wallet.getProofsByStates(states: states)
+            let proofs = try await wallet.getProofsByStates(states: states)
             // New wallet should have no proofs
             XCTAssertTrue(proofs.isEmpty, "New wallet should have no proofs")
             print("Retrieved \(proofs.count) proofs")
@@ -239,7 +239,7 @@ final class CashuDevKitTests: XCTestCase {
     
     func testDatabaseCreation() async throws {
         let tempDir = NSTemporaryDirectory() + "test-wallet"
-        let db = try WalletSqliteDatabase(workDir: tempDir)
+        let db = try await WalletSqliteDatabase(workDir: tempDir)
         XCTAssertNotNil(db)
     }
     
@@ -250,7 +250,7 @@ final class CashuDevKitTests: XCTestCase {
         let db = try await createTestDatabase()
         
         do {
-            let _ = try Wallet(
+            let _ = try await Wallet(
                 mintUrl: "invalid-url",
                 unit: testUnit,
                 mnemonic: mnemonic,
@@ -317,7 +317,7 @@ final class CashuDevKitTests: XCTestCase {
         
         // Test listing all transactions (empty wallet should return empty list)
         do {
-            let allTransactions = try wallet.listTransactions(direction: nil)
+            let allTransactions = try await wallet.listTransactions(direction: nil)
             XCTAssertTrue(allTransactions.isEmpty, "New wallet should have no transactions")
             print("Listed \(allTransactions.count) transactions (all directions)")
         } catch {
@@ -327,7 +327,7 @@ final class CashuDevKitTests: XCTestCase {
         
         // Test listing incoming transactions
         do {
-            let incomingTransactions = try wallet.listTransactions(direction: .incoming)
+            let incomingTransactions = try await wallet.listTransactions(direction: .incoming)
             XCTAssertTrue(incomingTransactions.isEmpty, "New wallet should have no incoming transactions")
             print("Listed \(incomingTransactions.count) incoming transactions")
         } catch {
@@ -337,7 +337,7 @@ final class CashuDevKitTests: XCTestCase {
         
         // Test listing outgoing transactions
         do {
-            let outgoingTransactions = try wallet.listTransactions(direction: .outgoing)
+            let outgoingTransactions = try await wallet.listTransactions(direction: .outgoing)
             XCTAssertTrue(outgoingTransactions.isEmpty, "New wallet should have no outgoing transactions")
             print("Listed \(outgoingTransactions.count) outgoing transactions")
         } catch {
@@ -353,7 +353,7 @@ final class CashuDevKitTests: XCTestCase {
         let fakeTransactionId = TransactionId(hex: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
         
         do {
-            let transaction = try wallet.getTransaction(id: fakeTransactionId)
+            let transaction = try await wallet.getTransaction(id: fakeTransactionId)
             XCTAssertNil(transaction, "Non-existent transaction should return nil")
             print("Correctly returned nil for non-existent transaction")
         } catch {
@@ -369,7 +369,7 @@ final class CashuDevKitTests: XCTestCase {
         let fakeTransactionId = TransactionId(hex: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
         
         do {
-            try wallet.revertTransaction(id: fakeTransactionId)
+            try await wallet.revertTransaction(id: fakeTransactionId)
             XCTFail("Reverting non-existent transaction should fail")
         } catch {
             print("Correctly failed to revert non-existent transaction: \(error)")
@@ -385,7 +385,7 @@ final class CashuDevKitTests: XCTestCase {
         
         do {
             // Step 1: Create a mint quote
-            let quote = try wallet.mintQuote(amount: amount, description: nil)
+            let quote = try await wallet.mintQuote(amount: amount, description: nil)
             
             print("Mint quote created:")
             print("  Quote ID: \(quote.id)")
@@ -406,7 +406,7 @@ final class CashuDevKitTests: XCTestCase {
                 id: nil
             )
             
-            let subscription = try wallet.subscribe(params: subscribeParams)
+            let subscription = try await wallet.subscribe(params: subscribeParams)
             print("Subscribed to mint quote updates")
             
             // Step 3: In a real scenario, we would pay the lightning invoice here
@@ -447,7 +447,7 @@ final class CashuDevKitTests: XCTestCase {
                         print("Quote is paid! Minting proofs...")
                         
                         let splitTarget = SplitTarget.none
-                        let proofs = try wallet.mint(
+                        let proofs = try await wallet.mint(
                             quoteId: quote.id,
                             amountSplitTarget: splitTarget,
                             spendingConditions: nil
@@ -492,7 +492,7 @@ final class CashuDevKitTests: XCTestCase {
                     
                     do {
                         let splitTarget = SplitTarget.none
-                        let proofs = try wallet.mint(
+                        let proofs = try await wallet.mint(
                             quoteId: quote.id,
                             amountSplitTarget: splitTarget,
                             spendingConditions: nil

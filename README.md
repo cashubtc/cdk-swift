@@ -91,7 +91,7 @@ print("Generated mnemonic: \(mnemonic)")
 let config = WalletConfig(targetProofCount: nil)
 
 // Create database
-let db = try WalletSqliteDatabase(workDir: "/path/to/wallet/data")
+let db = try await WalletSqliteDatabase(workDir: "/path/to/wallet/data")
 
 // Create wallet with generated mnemonic
 let wallet = try Wallet(
@@ -106,7 +106,7 @@ let wallet = try Wallet(
 ### Get Mint Information
 
 ```swift
-let mintInfo = try wallet.getMintInfo()
+let mintInfo = try await wallet.getMintInfo()
 if let info = mintInfo {
     print("Mint name: \(info.name ?? "Unknown")")
     print("Supported units: \(info.nuts)")
@@ -118,13 +118,13 @@ if let info = mintInfo {
 ```swift
 // Create a mint quote
 let amount = Amount(value: 1000) // 1000 sats
-let quote = try wallet.mintQuote(
+let quote = try await wallet.mintQuote(
     amount: amount, 
     description: "My payment"
 )
 
 // Mint tokens after paying the quote
-let proofs = try wallet.mint(
+let proofs = try await wallet.mint(
     quoteId: quote.id,
     amountSplitTarget: SplitTarget.none,
     spendingConditions: nil
@@ -148,13 +148,13 @@ let sendOptions = SendOptions(
 )
 
 // Prepare the send
-let preparedSend = try wallet.prepareSend(
+let preparedSend = try await wallet.prepareSend(
     amount: Amount(value: 500),
     options: sendOptions
 )
 
 // Get the token to share
-let token = try preparedSend.confirm(memo: "Coffee payment")
+let token = try await preparedSend.confirm(memo: "Coffee payment")
 print("Token to send: \(token)")
 ```
 
@@ -170,7 +170,7 @@ let receiveOptions = ReceiveOptions(
 )
 
 // Receive the token
-let receivedAmount = try wallet.receive(
+let receivedAmount = try await wallet.receive(
     token: token,
     options: receiveOptions
 )
@@ -182,33 +182,33 @@ print("Received: \(receivedAmount.value) sats")
 
 ```swift
 // List all transactions
-let allTransactions = try wallet.listTransactions(direction: nil)
+let allTransactions = try await wallet.listTransactions(direction: nil)
 
 // List only incoming transactions (mint, receive)
-let incomingTransactions = try wallet.listTransactions(direction: .incoming)
+let incomingTransactions = try await wallet.listTransactions(direction: .incoming)
 
 // List only outgoing transactions (send, melt)
-let outgoingTransactions = try wallet.listTransactions(direction: .outgoing)
+let outgoingTransactions = try await wallet.listTransactions(direction: .outgoing)
 
 // Get a specific transaction by ID
 let transactionId = TransactionId(hex: "your_transaction_id_here")
-let transaction = try wallet.getTransaction(id: transactionId)
+let transaction = try await wallet.getTransaction(id: transactionId)
 
 // Revert a transaction if needed
-try wallet.revertTransaction(id: transactionId)
+try await wallet.revertTransaction(id: transactionId)
 ```
 
 ### Melt Tokens (Lightning Payments)
 
 ```swift
 let invoice = "lnbc1000n1..." // Lightning invoice
-let meltQuote = try wallet.meltQuote(
+let meltQuote = try await wallet.meltQuote(
     request: invoice,
     options: nil
 )
 
 // Pay the Lightning invoice
-let melted = try wallet.melt(quoteId: meltQuote.id)
+let melted = try await wallet.melt(quoteId: meltQuote.id)
 print("Payment sent, preimage: \(melted.preimage ?? "None")")
 ```
 
