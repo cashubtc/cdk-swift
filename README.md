@@ -47,7 +47,7 @@ For contributors or those who want to build from source:
    ```bash
    git clone https://github.com/cashubtc/cdk-swift.git
    cd cdk-swift
-   just build  # or ./build-xcframework.sh
+   just build
    ```
 
 2. **Add as a local package dependency** in your `Package.swift`:
@@ -264,7 +264,7 @@ cd cdk-swift
 
 # Generate Swift bindings and build
 just generate
-just build-native
+just build
 just test
 ```
 
