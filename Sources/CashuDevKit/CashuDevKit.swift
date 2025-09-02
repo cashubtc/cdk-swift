@@ -1694,6 +1694,11 @@ public protocol TokenProtocol: AnyObject, Sendable {
     func toRawBytes() throws  -> Data
     
     /**
+     * Convert token to string representation
+     */
+    func toString()  -> String
+    
+    /**
      * Get the currency unit
      */
     func unit()  -> CurrencyUnit?
@@ -1806,6 +1811,16 @@ open func proofsSimple()throws  -> [Proof]  {
 open func toRawBytes()throws  -> Data  {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
     uniffi_cdk_ffi_fn_method_token_to_raw_bytes(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Convert token to string representation
+     */
+open func toString() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_token_to_string(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -5014,11 +5029,11 @@ open class WalletSqliteDatabase: WalletSqliteDatabaseProtocol, @unchecked Sendab
     /**
      * Create a new WalletSqliteDatabase with the given work directory
      */
-public convenience init(workDir: String)async throws  {
+public convenience init(filePath: String)async throws  {
     let pointer =
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_cdk_ffi_fn_constructor_walletsqlitedatabase_new(FfiConverterString.lower(workDir)
+                uniffi_cdk_ffi_fn_constructor_walletsqlitedatabase_new(FfiConverterString.lower(filePath)
                 )
             },
             pollFunc: ffi_cdk_ffi_rust_future_poll_pointer,
@@ -6475,6 +6490,10 @@ public struct MeltQuote {
      * Payment preimage
      */
     public var paymentPreimage: String?
+    /**
+     * Payment method
+     */
+    public var paymentMethod: PaymentMethod
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6502,7 +6521,10 @@ public struct MeltQuote {
          */expiry: UInt64, 
         /**
          * Payment preimage
-         */paymentPreimage: String?) {
+         */paymentPreimage: String?, 
+        /**
+         * Payment method
+         */paymentMethod: PaymentMethod) {
         self.id = id
         self.amount = amount
         self.unit = unit
@@ -6511,6 +6533,7 @@ public struct MeltQuote {
         self.state = state
         self.expiry = expiry
         self.paymentPreimage = paymentPreimage
+        self.paymentMethod = paymentMethod
     }
 }
 
@@ -6545,6 +6568,9 @@ extension MeltQuote: Equatable, Hashable {
         if lhs.paymentPreimage != rhs.paymentPreimage {
             return false
         }
+        if lhs.paymentMethod != rhs.paymentMethod {
+            return false
+        }
         return true
     }
 
@@ -6557,6 +6583,7 @@ extension MeltQuote: Equatable, Hashable {
         hasher.combine(state)
         hasher.combine(expiry)
         hasher.combine(paymentPreimage)
+        hasher.combine(paymentMethod)
     }
 }
 
@@ -6576,7 +6603,8 @@ public struct FfiConverterTypeMeltQuote: FfiConverterRustBuffer {
                 feeReserve: FfiConverterTypeAmount.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
                 expiry: FfiConverterUInt64.read(from: &buf), 
-                paymentPreimage: FfiConverterOptionString.read(from: &buf)
+                paymentPreimage: FfiConverterOptionString.read(from: &buf), 
+                paymentMethod: FfiConverterTypePaymentMethod.read(from: &buf)
         )
     }
 
@@ -6589,6 +6617,7 @@ public struct FfiConverterTypeMeltQuote: FfiConverterRustBuffer {
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
         FfiConverterUInt64.write(value.expiry, into: &buf)
         FfiConverterOptionString.write(value.paymentPreimage, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.paymentMethod, into: &buf)
     }
 }
 
@@ -6943,7 +6972,7 @@ public struct MintQuote {
     /**
      * Payment method
      */
-    public var paymentMethod: String
+    public var paymentMethod: PaymentMethod
     /**
      * Secret key (optional, hex-encoded)
      */
@@ -6981,7 +7010,7 @@ public struct MintQuote {
          */amountPaid: Amount, 
         /**
          * Payment method
-         */paymentMethod: String, 
+         */paymentMethod: PaymentMethod, 
         /**
          * Secret key (optional, hex-encoded)
          */secretKey: String?) {
@@ -7075,7 +7104,7 @@ public struct FfiConverterTypeMintQuote: FfiConverterRustBuffer {
                 mintUrl: FfiConverterTypeMintUrl.read(from: &buf), 
                 amountIssued: FfiConverterTypeAmount.read(from: &buf), 
                 amountPaid: FfiConverterTypeAmount.read(from: &buf), 
-                paymentMethod: FfiConverterString.read(from: &buf), 
+                paymentMethod: FfiConverterTypePaymentMethod.read(from: &buf), 
                 secretKey: FfiConverterOptionString.read(from: &buf)
         )
     }
@@ -7090,7 +7119,7 @@ public struct FfiConverterTypeMintQuote: FfiConverterRustBuffer {
         FfiConverterTypeMintUrl.write(value.mintUrl, into: &buf)
         FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
         FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
-        FfiConverterString.write(value.paymentMethod, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.paymentMethod, into: &buf)
         FfiConverterOptionString.write(value.secretKey, into: &buf)
     }
 }
@@ -9318,6 +9347,98 @@ public func FfiConverterTypeNotificationPayload_lift(_ buf: RustBuffer) throws -
 public func FfiConverterTypeNotificationPayload_lower(_ value: NotificationPayload) -> RustBuffer {
     return FfiConverterTypeNotificationPayload.lower(value)
 }
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * FFI-compatible PaymentMethod
+ */
+
+public enum PaymentMethod {
+    
+    /**
+     * Bolt11 payment type
+     */
+    case bolt11
+    /**
+     * Bolt12 payment type
+     */
+    case bolt12
+    /**
+     * Custom payment type
+     */
+    case custom(method: String
+    )
+}
+
+
+#if compiler(>=6)
+extension PaymentMethod: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePaymentMethod: FfiConverterRustBuffer {
+    typealias SwiftType = PaymentMethod
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PaymentMethod {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .bolt11
+        
+        case 2: return .bolt12
+        
+        case 3: return .custom(method: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: PaymentMethod, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .bolt11:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .bolt12:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .custom(method):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(method, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePaymentMethod_lift(_ buf: RustBuffer) throws -> PaymentMethod {
+    return try FfiConverterTypePaymentMethod.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePaymentMethod_lower(_ value: PaymentMethod) -> RustBuffer {
+    return FfiConverterTypePaymentMethod.lower(value)
+}
+
+
+extension PaymentMethod: Equatable, Hashable {}
 
 
 
@@ -11959,6 +12080,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_token_to_raw_bytes() != 25396) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_token_to_string() != 27648) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_token_unit() != 55723) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -12244,7 +12368,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_constructor_wallet_new() != 60638) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_constructor_walletsqlitedatabase_new() != 16714) {
+    if (uniffi_cdk_ffi_checksum_constructor_walletsqlitedatabase_new() != 55535) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_walletsqlitedatabase_new_in_memory() != 20740) {
