@@ -1,6 +1,8 @@
 name: Publish Swift Package
 
 on:
+  repository_dispatch:
+    types: [cdk-release]
   workflow_dispatch:
     inputs:
       version:
@@ -10,18 +12,32 @@ on:
       cdk_repo:
         description: 'CDK repository (owner/repo format)'
         required: true
-        default: 'davidcaseria/cdk'
+        default: 'cashubtc/cdk'
         type: string
       cdk_ref:
         description: 'CDK repository ref (branch/tag)'
         required: true
-        default: 'ffi'
+        default: 'main'
         type: string
 
 jobs:
   build-publish-xcframework:
     runs-on: macos-14
     steps:
+      - name: Set variables
+        id: vars
+        run: |
+          # Handle both repository_dispatch and workflow_dispatch
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            echo "version=${{ github.event.client_payload.version }}" >> $GITHUB_OUTPUT
+            echo "cdk_repo=${{ github.event.client_payload.cdk_repo || 'cashubtc/cdk' }}" >> $GITHUB_OUTPUT
+            echo "cdk_ref=${{ github.event.client_payload.cdk_ref || github.event.client_payload.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "cdk_repo=${{ github.event.inputs.cdk_repo }}" >> $GITHUB_OUTPUT
+            echo "cdk_ref=${{ github.event.inputs.cdk_ref }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout cdk-swift
         uses: actions/checkout@v4
         with:
@@ -30,8 +46,8 @@ jobs:
       - name: Checkout CDK
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.inputs.cdk_repo }}
-          ref: ${{ github.event.inputs.cdk_ref }}
+          repository: ${{ steps.vars.outputs.cdk_repo }}
+          ref: ${{ steps.vars.outputs.cdk_ref }}
           path: cdk
 
       - name: Setup Rust
@@ -69,7 +85,7 @@ jobs:
         working-directory: cdk-swift
         run: |
           # Update the Package.swift with the new version and checksum
-          VERSION=${{ github.event.inputs.version }}
+          VERSION=${{ steps.vars.outputs.version }}
           CHECKSUM=${{ env.CHECKSUM }}
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/cdkFFI.xcframework.zip"
           
@@ -88,7 +104,7 @@ jobs:
       - name: Update README with version
         working-directory: cdk-swift
         run: |
-          VERSION=${{ github.event.inputs.version }}
+          VERSION=${{ steps.vars.outputs.version }}
           
           # Update the version in README.md Swift Package Manager example
           sed -i '' "s|from: \"[0-9.]*\"|from: \"${VERSION}\"|g" README.md
@@ -101,32 +117,32 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Update to version ${{ github.event.inputs.version }}"
+          git commit -m "Update to version ${{ steps.vars.outputs.version }}"
 
       - name: Create tag
         working-directory: cdk-swift
         run: |
-          git tag -a "v${{ github.event.inputs.version }}" -m "Version ${{ github.event.inputs.version }}"
+          git tag -a "v${{ steps.vars.outputs.version }}" -m "Version ${{ steps.vars.outputs.version }}"
 
       - name: Push changes
         working-directory: cdk-swift
         run: |
           git push origin main
-          git push origin "v${{ github.event.inputs.version }}"
+          git push origin "v${{ steps.vars.outputs.version }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.event.inputs.version }}
-          name: Version ${{ github.event.inputs.version }}
+          tag_name: v${{ steps.vars.outputs.version }}
+          name: Version ${{ steps.vars.outputs.version }}
           body: |
             ## Changes
-            - Built with CDK from ${{ github.event.inputs.cdk_repo }}@${{ github.event.inputs.cdk_ref }}
+            - Built with CDK from ${{ steps.vars.outputs.cdk_repo }}@${{ steps.vars.outputs.cdk_ref }}
             
             ## Installation
             Add cdk-swift to your Swift Package Manager dependencies:
             ```swift
-            .package(url: "https://github.com/${{ github.repository }}", from: "${{ github.event.inputs.version }}")
+            .package(url: "https://github.com/${{ github.repository }}", from: "${{ steps.vars.outputs.version }}")
             ```
           files: |
             cdk-swift/cdkFFI.xcframework.zip
