@@ -39,8 +39,8 @@ rustup target add aarch64-apple-darwin
 # Build for macOS targets only
 log_info "Building Rust libraries for macOS targets..."
 cd "$FFI_DIR"
-cargo build --release --target x86_64-apple-darwin
-cargo build --release --target aarch64-apple-darwin
+cargo build --profile release-smaller --target x86_64-apple-darwin
+cargo build --profile release-smaller --target aarch64-apple-darwin
 cd - > /dev/null
 
 # Create directories for frameworks
@@ -49,8 +49,8 @@ mkdir -p target/macos/
 # Combine macOS libraries
 log_info "Creating macOS universal library..."
 lipo -create \
-    "$FFI_DIR/../../target/x86_64-apple-darwin/release/libcdk_ffi.a" \
-    "$FFI_DIR/../../target/aarch64-apple-darwin/release/libcdk_ffi.a" \
+    "$FFI_DIR/../../target/x86_64-apple-darwin/release-smaller/libcdk_ffi.a" \
+    "$FFI_DIR/../../target/aarch64-apple-darwin/release-smaller/libcdk_ffi.a" \
     -output "target/macos/libcdk_ffi.a"
 
 # Create XCFramework with just macOS

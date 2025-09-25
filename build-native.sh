@@ -43,7 +43,7 @@ rm -rf "$FRAMEWORK_NAME.xcframework"
 # Build for native target only
 log_info "Building Rust library for native target..."
 cd "$FFI_DIR"
-cargo build --release
+cargo build --profile release-smaller
 cd - > /dev/null
 
 # Generate Swift bindings if they don't exist
@@ -57,7 +57,7 @@ mkdir -p target/native/Headers/
 
 # Copy native library and headers
 log_info "Copying native library and headers..."
-cp "$FFI_DIR/../../target/release/libcdk_ffi.a" "target/native/libcdk_ffi.a"
+cp "$FFI_DIR/../../target/release-smaller/libcdk_ffi.a" "target/native/libcdk_ffi.a"
 cp "Sources/CashuDevKitFFI/CashuDevKitFFI.h" "target/native/Headers/"
 cp "Sources/CashuDevKitFFI/module.modulemap" "target/native/Headers/CashuDevKitFFI.modulemap"
 

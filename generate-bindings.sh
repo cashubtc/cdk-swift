@@ -45,10 +45,10 @@ log_info "Building CDK FFI library for host platform: $HOST_TARGET"
 
 # Build the CDK FFI library explicitly for host platform
 cd "$CDK_DIR/crates/cdk-ffi"
-cargo build --release --target "$HOST_TARGET"
+cargo build --profile release-smaller --target "$HOST_TARGET"
 
 # Check if library was built successfully
-DYLIB_PATH="../../target/$HOST_TARGET/release/libcdk_ffi.dylib"
+DYLIB_PATH="../../target/$HOST_TARGET/release-smaller/libcdk_ffi.dylib"
 if [ ! -f "$DYLIB_PATH" ]; then
     echo "❌ Failed to build libcdk_ffi.dylib at $DYLIB_PATH"
     exit 1
