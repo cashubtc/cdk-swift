@@ -6252,7 +6252,7 @@ public func FfiConverterTypeWalletSqliteDatabase_lower(_ value: WalletSqliteData
  * FFI-compatible Amount type
  */
 public struct Amount {
-    public var value: UInt64
+    public let value: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6278,6 +6278,8 @@ extension Amount: Equatable, Hashable {
         hasher.combine(value)
     }
 }
+
+extension Amount: Codable {}
 
 
 
@@ -6320,19 +6322,19 @@ public struct AuthProof {
     /**
      * Keyset ID
      */
-    public var keysetId: String
+    public let keysetId: String
     /**
      * Secret message
      */
-    public var secret: String
+    public let secret: String
     /**
      * Unblinded signature (C)
      */
-    public var c: String
+    public let c: String
     /**
      * Y value (hash_to_curve of secret)
      */
-    public var y: String
+    public let y: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6386,6 +6388,8 @@ extension AuthProof: Equatable, Hashable {
     }
 }
 
+extension AuthProof: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -6433,11 +6437,11 @@ public struct BlindAuthSettings {
     /**
      * Maximum number of blind auth tokens that can be minted per request
      */
-    public var batMaxMint: UInt64
+    public let batMaxMint: UInt64
     /**
      * Protected endpoints requiring blind authentication
      */
-    public var protectedEndpoints: [ProtectedEndpoint]
+    public let protectedEndpoints: [ProtectedEndpoint]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6474,6 +6478,8 @@ extension BlindAuthSettings: Equatable, Hashable {
         hasher.combine(protectedEndpoints)
     }
 }
+
+extension BlindAuthSettings: Codable {}
 
 
 
@@ -6518,11 +6524,11 @@ public struct BlindSignatureDleq {
     /**
      * e value (hex-encoded SecretKey)
      */
-    public var e: String
+    public let e: String
     /**
      * s value (hex-encoded SecretKey)
      */
-    public var s: String
+    public let s: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6559,6 +6565,8 @@ extension BlindSignatureDleq: Equatable, Hashable {
         hasher.combine(s)
     }
 }
+
+extension BlindSignatureDleq: Codable {}
 
 
 
@@ -6603,15 +6611,15 @@ public struct ClearAuthSettings {
     /**
      * OpenID Connect discovery URL
      */
-    public var openidDiscovery: String
+    public let openidDiscovery: String
     /**
      * OAuth 2.0 client ID
      */
-    public var clientId: String
+    public let clientId: String
     /**
      * Protected endpoints requiring clear authentication
      */
-    public var protectedEndpoints: [ProtectedEndpoint]
+    public let protectedEndpoints: [ProtectedEndpoint]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6656,6 +6664,8 @@ extension ClearAuthSettings: Equatable, Hashable {
         hasher.combine(protectedEndpoints)
     }
 }
+
+extension ClearAuthSettings: Codable {}
 
 
 
@@ -6702,27 +6712,27 @@ public struct Conditions {
     /**
      * Unix locktime after which refund keys can be used
      */
-    public var locktime: UInt64?
+    public let locktime: UInt64?
     /**
      * Additional Public keys (as hex strings)
      */
-    public var pubkeys: [String]
+    public let pubkeys: [String]
     /**
      * Refund keys (as hex strings)
      */
-    public var refundKeys: [String]
+    public let refundKeys: [String]
     /**
      * Number of signatures required (default 1)
      */
-    public var numSigs: UInt64?
+    public let numSigs: UInt64?
     /**
      * Signature flag (0 = SigInputs, 1 = SigAll)
      */
-    public var sigFlag: UInt8
+    public let sigFlag: UInt8
     /**
      * Number of refund signatures required (default 1)
      */
-    public var numSigsRefund: UInt64?
+    public let numSigsRefund: UInt64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6792,6 +6802,8 @@ extension Conditions: Equatable, Hashable {
     }
 }
 
+extension Conditions: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -6843,11 +6855,11 @@ public struct ContactInfo {
     /**
      * Contact Method i.e. nostr
      */
-    public var method: String
+    public let method: String
     /**
      * Contact info i.e. npub...
      */
-    public var info: String
+    public let info: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6884,6 +6896,8 @@ extension ContactInfo: Equatable, Hashable {
         hasher.combine(info)
     }
 }
+
+extension ContactInfo: Codable {}
 
 
 
@@ -6925,7 +6939,7 @@ public func FfiConverterTypeContactInfo_lower(_ value: ContactInfo) -> RustBuffe
  * FFI-compatible Id (for keyset IDs)
  */
 public struct Id {
-    public var hex: String
+    public let hex: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -6951,6 +6965,8 @@ extension Id: Equatable, Hashable {
         hasher.combine(hex)
     }
 }
+
+extension Id: Codable {}
 
 
 
@@ -6993,19 +7009,19 @@ public struct KeySet {
     /**
      * Keyset ID
      */
-    public var id: String
+    public let id: String
     /**
      * Currency unit
      */
-    public var unit: CurrencyUnit
+    public let unit: CurrencyUnit
     /**
      * The keys (map of amount to public key hex)
      */
-    public var keys: [UInt64: String]
+    public let keys: [UInt64: String]
     /**
      * Optional expiry timestamp
      */
-    public var finalExpiry: UInt64?
+    public let finalExpiry: UInt64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7059,6 +7075,8 @@ extension KeySet: Equatable, Hashable {
     }
 }
 
+extension KeySet: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -7103,13 +7121,13 @@ public func FfiConverterTypeKeySet_lower(_ value: KeySet) -> RustBuffer {
  * FFI-compatible KeySetInfo
  */
 public struct KeySetInfo {
-    public var id: String
-    public var unit: CurrencyUnit
-    public var active: Bool
+    public let id: String
+    public let unit: CurrencyUnit
+    public let active: Bool
     /**
      * Input fee per thousand (ppk)
      */
-    public var inputFeePpk: UInt64
+    public let inputFeePpk: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7153,6 +7171,8 @@ extension KeySetInfo: Equatable, Hashable {
         hasher.combine(inputFeePpk)
     }
 }
+
+extension KeySetInfo: Codable {}
 
 
 
@@ -7201,15 +7221,15 @@ public struct Keys {
     /**
      * Keyset ID
      */
-    public var id: String
+    public let id: String
     /**
      * Currency unit
      */
-    public var unit: CurrencyUnit
+    public let unit: CurrencyUnit
     /**
      * Map of amount to public key hex (simplified from BTreeMap)
      */
-    public var keys: [UInt64: String]
+    public let keys: [UInt64: String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7255,6 +7275,8 @@ extension Keys: Equatable, Hashable {
     }
 }
 
+extension Keys: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -7297,14 +7319,14 @@ public func FfiConverterTypeKeys_lower(_ value: Keys) -> RustBuffer {
  * FFI-compatible MeltMethodSettings (NUT-05)
  */
 public struct MeltMethodSettings {
-    public var method: PaymentMethod
-    public var unit: CurrencyUnit
-    public var minAmount: Amount?
-    public var maxAmount: Amount?
+    public let method: PaymentMethod
+    public let unit: CurrencyUnit
+    public let minAmount: Amount?
+    public let maxAmount: Amount?
     /**
      * For bolt11, whether mint supports amountless invoices
      */
-    public var amountless: Bool?
+    public let amountless: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7353,6 +7375,8 @@ extension MeltMethodSettings: Equatable, Hashable {
         hasher.combine(amountless)
     }
 }
+
+extension MeltMethodSettings: Codable {}
 
 
 
@@ -7403,39 +7427,39 @@ public struct MeltQuote {
     /**
      * Quote ID
      */
-    public var id: String
+    public let id: String
     /**
      * Quote amount
      */
-    public var amount: Amount
+    public let amount: Amount
     /**
      * Currency unit
      */
-    public var unit: CurrencyUnit
+    public let unit: CurrencyUnit
     /**
      * Payment request
      */
-    public var request: String
+    public let request: String
     /**
      * Fee reserve
      */
-    public var feeReserve: Amount
+    public let feeReserve: Amount
     /**
      * Quote state
      */
-    public var state: QuoteState
+    public let state: QuoteState
     /**
      * Expiry timestamp
      */
-    public var expiry: UInt64
+    public let expiry: UInt64
     /**
      * Payment preimage
      */
-    public var paymentPreimage: String?
+    public let paymentPreimage: String?
     /**
      * Payment method
      */
-    public var paymentMethod: PaymentMethod
+    public let paymentMethod: PaymentMethod
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7529,6 +7553,8 @@ extension MeltQuote: Equatable, Hashable {
     }
 }
 
+extension MeltQuote: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -7583,11 +7609,11 @@ public func FfiConverterTypeMeltQuote_lower(_ value: MeltQuote) -> RustBuffer {
  * FFI-compatible Melted result
  */
 public struct Melted {
-    public var state: QuoteState
-    public var preimage: String?
-    public var change: [Proof]?
-    public var amount: Amount
-    public var feePaid: Amount
+    public let state: QuoteState
+    public let preimage: String?
+    public let change: [Proof]?
+    public let amount: Amount
+    public let feePaid: Amount
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7653,51 +7679,51 @@ public struct MintInfo {
     /**
      * name of the mint and should be recognizable
      */
-    public var name: String?
+    public let name: String?
     /**
      * hex pubkey of the mint
      */
-    public var pubkey: String?
+    public let pubkey: String?
     /**
      * implementation name and the version running
      */
-    public var version: MintVersion?
+    public let version: MintVersion?
     /**
      * short description of the mint
      */
-    public var description: String?
+    public let description: String?
     /**
      * long description
      */
-    public var descriptionLong: String?
+    public let descriptionLong: String?
     /**
      * Contact info
      */
-    public var contact: [ContactInfo]?
+    public let contact: [ContactInfo]?
     /**
      * shows which NUTs the mint supports
      */
-    public var nuts: Nuts
+    public let nuts: Nuts
     /**
      * Mint's icon URL
      */
-    public var iconUrl: String?
+    public let iconUrl: String?
     /**
      * Mint's endpoint URLs
      */
-    public var urls: [String]?
+    public let urls: [String]?
     /**
      * message of the day that the wallet must display to the user
      */
-    public var motd: String?
+    public let motd: String?
     /**
      * server unix timestamp
      */
-    public var time: UInt64?
+    public let time: UInt64?
     /**
      * terms of url service of the mint
      */
-    public var tosUrl: String?
+    public let tosUrl: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7815,6 +7841,8 @@ extension MintInfo: Equatable, Hashable {
     }
 }
 
+extension MintInfo: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -7875,14 +7903,14 @@ public func FfiConverterTypeMintInfo_lower(_ value: MintInfo) -> RustBuffer {
  * FFI-compatible MintMethodSettings (NUT-04)
  */
 public struct MintMethodSettings {
-    public var method: PaymentMethod
-    public var unit: CurrencyUnit
-    public var minAmount: Amount?
-    public var maxAmount: Amount?
+    public let method: PaymentMethod
+    public let unit: CurrencyUnit
+    public let minAmount: Amount?
+    public let maxAmount: Amount?
     /**
      * For bolt11, whether mint supports setting invoice description
      */
-    public var description: Bool?
+    public let description: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -7931,6 +7959,8 @@ extension MintMethodSettings: Equatable, Hashable {
         hasher.combine(description)
     }
 }
+
+extension MintMethodSettings: Codable {}
 
 
 
@@ -7981,47 +8011,47 @@ public struct MintQuote {
     /**
      * Quote ID
      */
-    public var id: String
+    public let id: String
     /**
      * Quote amount
      */
-    public var amount: Amount?
+    public let amount: Amount?
     /**
      * Currency unit
      */
-    public var unit: CurrencyUnit
+    public let unit: CurrencyUnit
     /**
      * Payment request
      */
-    public var request: String
+    public let request: String
     /**
      * Quote state
      */
-    public var state: QuoteState
+    public let state: QuoteState
     /**
      * Expiry timestamp
      */
-    public var expiry: UInt64
+    public let expiry: UInt64
     /**
      * Mint URL
      */
-    public var mintUrl: MintUrl
+    public let mintUrl: MintUrl
     /**
      * Amount issued
      */
-    public var amountIssued: Amount
+    public let amountIssued: Amount
     /**
      * Amount paid
      */
-    public var amountPaid: Amount
+    public let amountPaid: Amount
     /**
      * Payment method
      */
-    public var paymentMethod: PaymentMethod
+    public let paymentMethod: PaymentMethod
     /**
      * Secret key (optional, hex-encoded)
      */
-    public var secretKey: String?
+    public let secretKey: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8131,6 +8161,8 @@ extension MintQuote: Equatable, Hashable {
     }
 }
 
+extension MintQuote: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -8189,7 +8221,7 @@ public func FfiConverterTypeMintQuote_lower(_ value: MintQuote) -> RustBuffer {
  * FFI-compatible Mint URL
  */
 public struct MintUrl {
-    public var url: String
+    public let url: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8215,6 +8247,8 @@ extension MintUrl: Equatable, Hashable {
         hasher.combine(url)
     }
 }
+
+extension MintUrl: Codable {}
 
 
 
@@ -8257,11 +8291,11 @@ public struct MintVersion {
     /**
      * Mint Software name
      */
-    public var name: String
+    public let name: String
     /**
      * Mint Version
      */
-    public var version: String
+    public let version: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8298,6 +8332,8 @@ extension MintVersion: Equatable, Hashable {
         hasher.combine(version)
     }
 }
+
+extension MintVersion: Codable {}
 
 
 
@@ -8342,15 +8378,15 @@ public struct MultiMintReceiveOptions {
     /**
      * Whether to allow receiving from untrusted (not yet added) mints
      */
-    public var allowUntrusted: Bool
+    public let allowUntrusted: Bool
     /**
      * Mint URL to transfer tokens to from untrusted mints (None means keep in original mint)
      */
-    public var transferToMint: MintUrl?
+    public let transferToMint: MintUrl?
     /**
      * Base receive options to apply to the wallet receive
      */
-    public var receiveOptions: ReceiveOptions
+    public let receiveOptions: ReceiveOptions
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8395,6 +8431,8 @@ extension MultiMintReceiveOptions: Equatable, Hashable {
         hasher.combine(receiveOptions)
     }
 }
+
+extension MultiMintReceiveOptions: Codable {}
 
 
 
@@ -8441,23 +8479,23 @@ public struct MultiMintSendOptions {
     /**
      * Whether to allow transferring funds from other mints if needed
      */
-    public var allowTransfer: Bool
+    public let allowTransfer: Bool
     /**
      * Maximum amount to transfer from other mints (optional limit)
      */
-    public var maxTransferAmount: Amount?
+    public let maxTransferAmount: Amount?
     /**
      * Specific mint URLs allowed for transfers (empty means all mints allowed)
      */
-    public var allowedMints: [MintUrl]
+    public let allowedMints: [MintUrl]
     /**
      * Specific mint URLs to exclude from transfers
      */
-    public var excludedMints: [MintUrl]
+    public let excludedMints: [MintUrl]
     /**
      * Base send options to apply to the wallet send
      */
-    public var sendOptions: SendOptions
+    public let sendOptions: SendOptions
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8519,6 +8557,8 @@ extension MultiMintSendOptions: Equatable, Hashable {
     }
 }
 
+extension MultiMintSendOptions: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -8565,8 +8605,8 @@ public func FfiConverterTypeMultiMintSendOptions_lower(_ value: MultiMintSendOpt
  * FFI-compatible Nut04 Settings
  */
 public struct Nut04Settings {
-    public var methods: [MintMethodSettings]
-    public var disabled: Bool
+    public let methods: [MintMethodSettings]
+    public let disabled: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8597,6 +8637,8 @@ extension Nut04Settings: Equatable, Hashable {
         hasher.combine(disabled)
     }
 }
+
+extension Nut04Settings: Codable {}
 
 
 
@@ -8638,8 +8680,8 @@ public func FfiConverterTypeNut04Settings_lower(_ value: Nut04Settings) -> RustB
  * FFI-compatible Nut05 Settings
  */
 public struct Nut05Settings {
-    public var methods: [MeltMethodSettings]
-    public var disabled: Bool
+    public let methods: [MeltMethodSettings]
+    public let disabled: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8670,6 +8712,8 @@ extension Nut05Settings: Equatable, Hashable {
         hasher.combine(disabled)
     }
 }
+
+extension Nut05Settings: Codable {}
 
 
 
@@ -8714,59 +8758,59 @@ public struct Nuts {
     /**
      * NUT04 Settings
      */
-    public var nut04: Nut04Settings
+    public let nut04: Nut04Settings
     /**
      * NUT05 Settings
      */
-    public var nut05: Nut05Settings
+    public let nut05: Nut05Settings
     /**
      * NUT07 Settings - Token state check
      */
-    public var nut07Supported: Bool
+    public let nut07Supported: Bool
     /**
      * NUT08 Settings - Lightning fee return
      */
-    public var nut08Supported: Bool
+    public let nut08Supported: Bool
     /**
      * NUT09 Settings - Restore signature
      */
-    public var nut09Supported: Bool
+    public let nut09Supported: Bool
     /**
      * NUT10 Settings - Spending conditions
      */
-    public var nut10Supported: Bool
+    public let nut10Supported: Bool
     /**
      * NUT11 Settings - Pay to Public Key Hash
      */
-    public var nut11Supported: Bool
+    public let nut11Supported: Bool
     /**
      * NUT12 Settings - DLEQ proofs
      */
-    public var nut12Supported: Bool
+    public let nut12Supported: Bool
     /**
      * NUT14 Settings - Hashed Time Locked Contracts
      */
-    public var nut14Supported: Bool
+    public let nut14Supported: Bool
     /**
      * NUT20 Settings - Web sockets
      */
-    public var nut20Supported: Bool
+    public let nut20Supported: Bool
     /**
      * NUT21 Settings - Clear authentication
      */
-    public var nut21: ClearAuthSettings?
+    public let nut21: ClearAuthSettings?
     /**
      * NUT22 Settings - Blind authentication
      */
-    public var nut22: BlindAuthSettings?
+    public let nut22: BlindAuthSettings?
     /**
      * Supported currency units for minting
      */
-    public var mintUnits: [CurrencyUnit]
+    public let mintUnits: [CurrencyUnit]
     /**
      * Supported currency units for melting
      */
-    public var meltUnits: [CurrencyUnit]
+    public let meltUnits: [CurrencyUnit]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -8900,6 +8944,8 @@ extension Nuts: Equatable, Hashable {
     }
 }
 
+extension Nuts: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -8967,15 +9013,15 @@ public struct ProofDleq {
     /**
      * e value (hex-encoded SecretKey)
      */
-    public var e: String
+    public let e: String
     /**
      * s value (hex-encoded SecretKey)
      */
-    public var s: String
+    public let s: String
     /**
      * r value - blinding factor (hex-encoded SecretKey)
      */
-    public var r: String
+    public let r: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9020,6 +9066,8 @@ extension ProofDleq: Equatable, Hashable {
         hasher.combine(r)
     }
 }
+
+extension ProofDleq: Codable {}
 
 
 
@@ -9066,27 +9114,27 @@ public struct ProofInfo {
     /**
      * Proof
      */
-    public var proof: Proof
+    public let proof: Proof
     /**
      * Y value (hash_to_curve of secret)
      */
-    public var y: PublicKey
+    public let y: PublicKey
     /**
      * Mint URL
      */
-    public var mintUrl: MintUrl
+    public let mintUrl: MintUrl
     /**
      * Proof state
      */
-    public var state: ProofState
+    public let state: ProofState
     /**
      * Proof Spending Conditions
      */
-    public var spendingCondition: SpendingConditions?
+    public let spendingCondition: SpendingConditions?
     /**
      * Currency unit
      */
-    public var unit: CurrencyUnit
+    public let unit: CurrencyUnit
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9173,15 +9221,15 @@ public struct ProofStateUpdate {
     /**
      * Y value (hash_to_curve of secret)
      */
-    public var y: String
+    public let y: String
     /**
      * Current state
      */
-    public var state: ProofState
+    public let state: ProofState
     /**
      * Optional witness data
      */
-    public var witness: String?
+    public let witness: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9226,6 +9274,8 @@ extension ProofStateUpdate: Equatable, Hashable {
         hasher.combine(witness)
     }
 }
+
+extension ProofStateUpdate: Codable {}
 
 
 
@@ -9272,11 +9322,11 @@ public struct ProtectedEndpoint {
     /**
      * HTTP method (GET, POST, etc.)
      */
-    public var method: String
+    public let method: String
     /**
      * Endpoint path
      */
-    public var path: String
+    public let path: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9313,6 +9363,8 @@ extension ProtectedEndpoint: Equatable, Hashable {
         hasher.combine(path)
     }
 }
+
+extension ProtectedEndpoint: Codable {}
 
 
 
@@ -9357,7 +9409,7 @@ public struct PublicKey {
     /**
      * Hex-encoded public key
      */
-    public var hex: String
+    public let hex: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9386,6 +9438,8 @@ extension PublicKey: Equatable, Hashable {
         hasher.combine(hex)
     }
 }
+
+extension PublicKey: Codable {}
 
 
 
@@ -9428,19 +9482,19 @@ public struct ReceiveOptions {
     /**
      * Amount split target
      */
-    public var amountSplitTarget: SplitTarget
+    public let amountSplitTarget: SplitTarget
     /**
      * P2PK signing keys
      */
-    public var p2pkSigningKeys: [SecretKey]
+    public let p2pkSigningKeys: [SecretKey]
     /**
      * Preimages for HTLC conditions
      */
-    public var preimages: [String]
+    public let preimages: [String]
     /**
      * Metadata
      */
-    public var metadata: [String: String]
+    public let metadata: [String: String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9494,6 +9548,8 @@ extension ReceiveOptions: Equatable, Hashable {
     }
 }
 
+extension ReceiveOptions: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -9541,7 +9597,7 @@ public struct SecretKey {
     /**
      * Hex-encoded secret key (64 characters)
      */
-    public var hex: String
+    public let hex: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9570,6 +9626,8 @@ extension SecretKey: Equatable, Hashable {
         hasher.combine(hex)
     }
 }
+
+extension SecretKey: Codable {}
 
 
 
@@ -9612,11 +9670,11 @@ public struct SendMemo {
     /**
      * Memo text
      */
-    public var memo: String
+    public let memo: String
     /**
      * Include memo in token
      */
-    public var includeMemo: Bool
+    public let includeMemo: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9653,6 +9711,8 @@ extension SendMemo: Equatable, Hashable {
         hasher.combine(includeMemo)
     }
 }
+
+extension SendMemo: Codable {}
 
 
 
@@ -9697,31 +9757,31 @@ public struct SendOptions {
     /**
      * Memo
      */
-    public var memo: SendMemo?
+    public let memo: SendMemo?
     /**
      * Spending conditions
      */
-    public var conditions: SpendingConditions?
+    public let conditions: SpendingConditions?
     /**
      * Amount split target
      */
-    public var amountSplitTarget: SplitTarget
+    public let amountSplitTarget: SplitTarget
     /**
      * Send kind
      */
-    public var sendKind: SendKind
+    public let sendKind: SendKind
     /**
      * Include fee
      */
-    public var includeFee: Bool
+    public let includeFee: Bool
     /**
      * Maximum number of proofs to include in the token
      */
-    public var maxProofs: UInt32?
+    public let maxProofs: UInt32?
     /**
      * Metadata
      */
-    public var metadata: [String: String]
+    public let metadata: [String: String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9799,6 +9859,8 @@ extension SendOptions: Equatable, Hashable {
     }
 }
 
+extension SendOptions: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -9852,15 +9914,15 @@ public struct SubscribeParams {
     /**
      * Subscription kind
      */
-    public var kind: SubscriptionKind
+    public let kind: SubscriptionKind
     /**
      * Filters
      */
-    public var filters: [String]
+    public let filters: [String]
     /**
      * Subscription ID (optional, will be generated if not provided)
      */
-    public var id: String?
+    public let id: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9905,6 +9967,8 @@ extension SubscribeParams: Equatable, Hashable {
         hasher.combine(id)
     }
 }
+
+extension SubscribeParams: Codable {}
 
 
 
@@ -9951,7 +10015,7 @@ public struct SupportedSettings {
     /**
      * Setting supported
      */
-    public var supported: Bool
+    public let supported: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -9980,6 +10044,8 @@ extension SupportedSettings: Equatable, Hashable {
         hasher.combine(supported)
     }
 }
+
+extension SupportedSettings: Codable {}
 
 
 
@@ -10022,47 +10088,47 @@ public struct Transaction {
     /**
      * Transaction ID
      */
-    public var id: TransactionId
+    public let id: TransactionId
     /**
      * Mint URL
      */
-    public var mintUrl: MintUrl
+    public let mintUrl: MintUrl
     /**
      * Transaction direction
      */
-    public var direction: TransactionDirection
+    public let direction: TransactionDirection
     /**
      * Amount
      */
-    public var amount: Amount
+    public let amount: Amount
     /**
      * Fee
      */
-    public var fee: Amount
+    public let fee: Amount
     /**
      * Currency Unit
      */
-    public var unit: CurrencyUnit
+    public let unit: CurrencyUnit
     /**
      * Proof Ys (Y values from proofs)
      */
-    public var ys: [PublicKey]
+    public let ys: [PublicKey]
     /**
      * Unix timestamp
      */
-    public var timestamp: UInt64
+    public let timestamp: UInt64
     /**
      * Memo
      */
-    public var memo: String?
+    public let memo: String?
     /**
      * User-defined metadata
      */
-    public var metadata: [String: String]
+    public let metadata: [String: String]
     /**
      * Quote ID if this is a mint or melt transaction
      */
-    public var quoteId: String?
+    public let quoteId: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -10172,6 +10238,8 @@ extension Transaction: Equatable, Hashable {
     }
 }
 
+extension Transaction: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -10233,7 +10301,7 @@ public struct TransactionId {
     /**
      * Hex-encoded transaction ID (64 characters)
      */
-    public var hex: String
+    public let hex: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -10262,6 +10330,8 @@ extension TransactionId: Equatable, Hashable {
         hasher.combine(hex)
     }
 }
+
+extension TransactionId: Codable {}
 
 
 
@@ -10304,23 +10374,23 @@ public struct TransferResult {
     /**
      * Amount deducted from source mint
      */
-    public var amountSent: Amount
+    public let amountSent: Amount
     /**
      * Amount received at target mint
      */
-    public var amountReceived: Amount
+    public let amountReceived: Amount
     /**
      * Total fees paid for the transfer
      */
-    public var feesPaid: Amount
+    public let feesPaid: Amount
     /**
      * Remaining balance in source mint after transfer
      */
-    public var sourceBalanceAfter: Amount
+    public let sourceBalanceAfter: Amount
     /**
      * New balance in target mint after transfer
      */
-    public var targetBalanceAfter: Amount
+    public let targetBalanceAfter: Amount
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -10382,6 +10452,8 @@ extension TransferResult: Equatable, Hashable {
     }
 }
 
+extension TransferResult: Codable {}
+
 
 
 #if swift(>=5.8)
@@ -10428,7 +10500,7 @@ public func FfiConverterTypeTransferResult_lower(_ value: TransferResult) -> Rus
  * Configuration for creating wallets
  */
 public struct WalletConfig {
-    public var targetProofCount: UInt32?
+    public let targetProofCount: UInt32?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -10454,6 +10526,8 @@ extension WalletConfig: Equatable, Hashable {
         hasher.combine(targetProofCount)
     }
 }
+
+extension WalletConfig: Codable {}
 
 
 
@@ -10586,6 +10660,8 @@ public func FfiConverterTypeCurrencyUnit_lower(_ value: CurrencyUnit) -> RustBuf
 
 
 extension CurrencyUnit: Equatable, Hashable {}
+
+extension CurrencyUnit: Codable {}
 
 
 
@@ -10860,6 +10936,8 @@ public func FfiConverterTypeFfiError_lower(_ value: FfiError) -> RustBuffer {
 
 extension FfiError: Equatable, Hashable {}
 
+extension FfiError: Codable {}
+
 
 
 
@@ -10951,6 +11029,8 @@ public func FfiConverterTypeMeltOptions_lower(_ value: MeltOptions) -> RustBuffe
 
 
 extension MeltOptions: Equatable, Hashable {}
+
+extension MeltOptions: Codable {}
 
 
 
@@ -11139,6 +11219,8 @@ public func FfiConverterTypePaymentMethod_lower(_ value: PaymentMethod) -> RustB
 
 extension PaymentMethod: Equatable, Hashable {}
 
+extension PaymentMethod: Codable {}
+
 
 
 
@@ -11233,6 +11315,8 @@ public func FfiConverterTypeProofState_lower(_ value: ProofState) -> RustBuffer 
 
 extension ProofState: Equatable, Hashable {}
 
+extension ProofState: Codable {}
+
 
 
 
@@ -11319,6 +11403,8 @@ public func FfiConverterTypeQuoteState_lower(_ value: QuoteState) -> RustBuffer 
 
 
 extension QuoteState: Equatable, Hashable {}
+
+extension QuoteState: Codable {}
 
 
 
@@ -11425,6 +11511,8 @@ public func FfiConverterTypeSendKind_lower(_ value: SendKind) -> RustBuffer {
 
 extension SendKind: Equatable, Hashable {}
 
+extension SendKind: Codable {}
+
 
 
 
@@ -11524,6 +11612,8 @@ public func FfiConverterTypeSpendingConditions_lower(_ value: SpendingConditions
 
 extension SpendingConditions: Equatable, Hashable {}
 
+extension SpendingConditions: Codable {}
+
 
 
 
@@ -11618,6 +11708,8 @@ public func FfiConverterTypeSplitTarget_lower(_ value: SplitTarget) -> RustBuffe
 
 
 extension SplitTarget: Equatable, Hashable {}
+
+extension SplitTarget: Codable {}
 
 
 
@@ -11718,6 +11810,8 @@ public func FfiConverterTypeSubscriptionKind_lower(_ value: SubscriptionKind) ->
 
 extension SubscriptionKind: Equatable, Hashable {}
 
+extension SubscriptionKind: Codable {}
+
 
 
 
@@ -11796,6 +11890,8 @@ public func FfiConverterTypeTransactionDirection_lower(_ value: TransactionDirec
 
 
 extension TransactionDirection: Equatable, Hashable {}
+
+extension TransactionDirection: Codable {}
 
 
 
@@ -11878,6 +11974,8 @@ public func FfiConverterTypeTransferMode_lower(_ value: TransferMode) -> RustBuf
 
 
 extension TransferMode: Equatable, Hashable {}
+
+extension TransferMode: Codable {}
 
 
 
@@ -11973,6 +12071,8 @@ public func FfiConverterTypeWitness_lower(_ value: Witness) -> RustBuffer {
 
 
 extension Witness: Equatable, Hashable {}
+
+extension Witness: Codable {}
 
 
 
