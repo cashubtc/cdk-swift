@@ -2343,6 +2343,16 @@ public protocol TokenProtocol: AnyObject, Sendable {
     func encode()  -> String
     
     /**
+     * Return all HTLC hashes from spending conditions
+     */
+    func htlcHashes()  -> [String]
+    
+    /**
+     * Return all locktimes from spending conditions (sorted ascending)
+     */
+    func locktimes()  -> [UInt64]
+    
+    /**
      * Get the memo from the token
      */
     func memo()  -> String?
@@ -2353,9 +2363,24 @@ public protocol TokenProtocol: AnyObject, Sendable {
     func mintUrl() throws  -> MintUrl
     
     /**
+     * Return all P2PK pubkeys referenced by this token's spending conditions
+     */
+    func p2pkPubkeys()  -> [String]
+    
+    /**
+     * Return all refund pubkeys from P2PK spending conditions
+     */
+    func p2pkRefundPubkeys()  -> [String]
+    
+    /**
      * Get proofs from the token (simplified - no keyset filtering for now)
      */
     func proofsSimple() throws  -> [Proof]
+    
+    /**
+     * Return unique spending conditions across all proofs in this token
+     */
+    func spendingConditions()  -> [SpendingConditions]
     
     /**
      * Convert token to raw bytes
@@ -2461,6 +2486,26 @@ open func encode() -> String  {
 }
     
     /**
+     * Return all HTLC hashes from spending conditions
+     */
+open func htlcHashes() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_token_htlc_hashes(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Return all locktimes from spending conditions (sorted ascending)
+     */
+open func locktimes() -> [UInt64]  {
+    return try!  FfiConverterSequenceUInt64.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_token_locktimes(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
      * Get the memo from the token
      */
 open func memo() -> String?  {
@@ -2481,11 +2526,41 @@ open func mintUrl()throws  -> MintUrl  {
 }
     
     /**
+     * Return all P2PK pubkeys referenced by this token's spending conditions
+     */
+open func p2pkPubkeys() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_token_p2pk_pubkeys(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Return all refund pubkeys from P2PK spending conditions
+     */
+open func p2pkRefundPubkeys() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_token_p2pk_refund_pubkeys(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
      * Get proofs from the token (simplified - no keyset filtering for now)
      */
 open func proofsSimple()throws  -> [Proof]  {
     return try  FfiConverterSequenceTypeProof.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
     uniffi_cdk_ffi_fn_method_token_proofs_simple(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Return unique spending conditions across all proofs in this token
+     */
+open func spendingConditions() -> [SpendingConditions]  {
+    return try!  FfiConverterSequenceTypeSpendingConditions.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_token_spending_conditions(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -12802,6 +12877,31 @@ fileprivate struct FfiConverterOptionSequenceTypeSpendingConditions: FfiConverte
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceUInt64: FfiConverterRustBuffer {
+    typealias SwiftType = [UInt64]
+
+    public static func write(_ value: [UInt64], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterUInt64.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt64] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [UInt64]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterUInt64.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceBool: FfiConverterRustBuffer {
     typealias SwiftType = [Bool]
 
@@ -14239,13 +14339,28 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_token_encode() != 53245) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_token_htlc_hashes() != 14335) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_token_locktimes() != 44524) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_token_memo() != 28883) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_token_mint_url() != 16820) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_token_p2pk_pubkeys() != 56348) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_token_p2pk_refund_pubkeys() != 16072) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_token_proofs_simple() != 24034) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_token_spending_conditions() != 55293) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_token_to_raw_bytes() != 25396) {
