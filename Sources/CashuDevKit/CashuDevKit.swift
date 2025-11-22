@@ -787,6 +787,53 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
     func melt(bolt11: String, options: MeltOptions?, maxFee: Amount?) async throws  -> Melted
     
     /**
+     * Get a melt quote for a BIP353 human-readable address
+     *
+     * This method resolves a BIP353 address (e.g., "alice@example.com") to a Lightning offer
+     * and then creates a melt quote for that offer at the specified mint.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for creating the melt quote
+     * * `bip353_address` - Human-readable address in the format "user@domain.com"
+     * * `amount_msat` - Amount to pay in millisatoshis
+     */
+    func meltBip353Quote(mintUrl: MintUrl, bip353Address: String, amountMsat: UInt64) async throws  -> MeltQuote
+    
+    /**
+     * Get a melt quote for a human-readable address
+     *
+     * This method accepts a human-readable address that could be either a BIP353 address
+     * or a Lightning address. It intelligently determines which to try based on mint support:
+     *
+     * 1. If the mint supports Bolt12, it tries BIP353 first
+     * 2. Falls back to Lightning address only if BIP353 DNS resolution fails
+     * 3. If BIP353 resolves but fails at the mint, it does NOT fall back to Lightning address
+     * 4. If the mint doesn't support Bolt12, it tries Lightning address directly
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for creating the melt quote
+     * * `address` - Human-readable address (BIP353 or Lightning address)
+     * * `amount_msat` - Amount to pay in millisatoshis
+     */
+    func meltHumanReadableQuote(mintUrl: MintUrl, address: String, amountMsat: UInt64) async throws  -> MeltQuote
+    
+    /**
+     * Get a melt quote for a Lightning address
+     *
+     * This method resolves a Lightning address (e.g., "alice@example.com") to a Lightning invoice
+     * and then creates a melt quote for that invoice at the specified mint.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for creating the melt quote
+     * * `lightning_address` - Lightning address in the format "user@domain.com"
+     * * `amount_msat` - Amount to pay in millisatoshis
+     */
+    func meltLightningAddressQuote(mintUrl: MintUrl, lightningAddress: String, amountMsat: UInt64) async throws  -> MeltQuote
+    
+    /**
      * Get a melt quote from a specific mint
      */
     func meltQuote(mintUrl: MintUrl, request: String, options: MeltOptions?) async throws  -> MeltQuote
@@ -835,6 +882,31 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
      * Set Clear Auth Token (CAT) for a specific mint
      */
     func setCat(mintUrl: MintUrl, cat: String) async throws 
+    
+    /**
+     * Set metadata cache TTL (time-to-live) in seconds for all mints
+     *
+     * Controls how long cached mint metadata is considered fresh for all mints
+     * in this MultiMintWallet.
+     *
+     * # Arguments
+     *
+     * * `ttl_secs` - Optional TTL in seconds. If None, cache never expires for any mint.
+     */
+    func setMetadataCacheTtlForAllMints(ttlSecs: UInt64?) async 
+    
+    /**
+     * Set metadata cache TTL (time-to-live) in seconds for a specific mint
+     *
+     * Controls how long cached mint metadata (keysets, keys, mint info) is considered fresh
+     * before requiring a refresh from the mint server for a specific mint.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint URL to set the TTL for
+     * * `ttl_secs` - Optional TTL in seconds. If None, cache never expires.
+     */
+    func setMetadataCacheTtlForMint(mintUrl: MintUrl, ttlSecs: UInt64?) async throws 
     
     /**
      * Set refresh token for a specific mint
@@ -1197,6 +1269,98 @@ open func melt(bolt11: String, options: MeltOptions?, maxFee: Amount?)async thro
 }
     
     /**
+     * Get a melt quote for a BIP353 human-readable address
+     *
+     * This method resolves a BIP353 address (e.g., "alice@example.com") to a Lightning offer
+     * and then creates a melt quote for that offer at the specified mint.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for creating the melt quote
+     * * `bip353_address` - Human-readable address in the format "user@domain.com"
+     * * `amount_msat` - Amount to pay in millisatoshis
+     */
+open func meltBip353Quote(mintUrl: MintUrl, bip353Address: String, amountMsat: UInt64)async throws  -> MeltQuote  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_melt_bip353_quote(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterString.lower(bip353Address),FfiConverterUInt64.lower(amountMsat)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMeltQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get a melt quote for a human-readable address
+     *
+     * This method accepts a human-readable address that could be either a BIP353 address
+     * or a Lightning address. It intelligently determines which to try based on mint support:
+     *
+     * 1. If the mint supports Bolt12, it tries BIP353 first
+     * 2. Falls back to Lightning address only if BIP353 DNS resolution fails
+     * 3. If BIP353 resolves but fails at the mint, it does NOT fall back to Lightning address
+     * 4. If the mint doesn't support Bolt12, it tries Lightning address directly
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for creating the melt quote
+     * * `address` - Human-readable address (BIP353 or Lightning address)
+     * * `amount_msat` - Amount to pay in millisatoshis
+     */
+open func meltHumanReadableQuote(mintUrl: MintUrl, address: String, amountMsat: UInt64)async throws  -> MeltQuote  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_melt_human_readable_quote(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterString.lower(address),FfiConverterUInt64.lower(amountMsat)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMeltQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get a melt quote for a Lightning address
+     *
+     * This method resolves a Lightning address (e.g., "alice@example.com") to a Lightning invoice
+     * and then creates a melt quote for that invoice at the specified mint.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for creating the melt quote
+     * * `lightning_address` - Lightning address in the format "user@domain.com"
+     * * `amount_msat` - Amount to pay in millisatoshis
+     */
+open func meltLightningAddressQuote(mintUrl: MintUrl, lightningAddress: String, amountMsat: UInt64)async throws  -> MeltQuote  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_melt_lightning_address_quote(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterString.lower(lightningAddress),FfiConverterUInt64.lower(amountMsat)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMeltQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Get a melt quote from a specific mint
      */
 open func meltQuote(mintUrl: MintUrl, request: String, options: MeltOptions?)async throws  -> MeltQuote  {
@@ -1387,6 +1551,62 @@ open func setCat(mintUrl: MintUrl, cat: String)async throws   {
                 uniffi_cdk_ffi_fn_method_multimintwallet_set_cat(
                     self.uniffiClonePointer(),
                     FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterString.lower(cat)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Set metadata cache TTL (time-to-live) in seconds for all mints
+     *
+     * Controls how long cached mint metadata is considered fresh for all mints
+     * in this MultiMintWallet.
+     *
+     * # Arguments
+     *
+     * * `ttl_secs` - Optional TTL in seconds. If None, cache never expires for any mint.
+     */
+open func setMetadataCacheTtlForAllMints(ttlSecs: UInt64?)async   {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_set_metadata_cache_ttl_for_all_mints(
+                    self.uniffiClonePointer(),
+                    FfiConverterOptionUInt64.lower(ttlSecs)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
+        )
+}
+    
+    /**
+     * Set metadata cache TTL (time-to-live) in seconds for a specific mint
+     *
+     * Controls how long cached mint metadata (keysets, keys, mint info) is considered fresh
+     * before requiring a refresh from the mint server for a specific mint.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint URL to set the TTL for
+     * * `ttl_secs` - Optional TTL in seconds. If None, cache never expires.
+     */
+open func setMetadataCacheTtlForMint(mintUrl: MintUrl, ttlSecs: UInt64?)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_set_metadata_cache_ttl_for_mint(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterOptionUInt64.lower(ttlSecs)
                 )
             },
             pollFunc: ffi_cdk_ffi_rust_future_poll_void,
@@ -2191,6 +2411,13 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func listTransactions(direction: TransactionDirection?) async throws  -> [Transaction]
     
     /**
+     * Load mint info
+     *
+     * This will get mint info from cache if it is fresh
+     */
+    func loadMintInfo() async throws  -> MintInfo
+    
+    /**
      * Melt tokens
      */
     func melt(quoteId: String) async throws  -> Melted
@@ -2308,6 +2535,28 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Set Clear Auth Token (CAT) for authentication
      */
     func setCat(cat: String) async throws 
+    
+    /**
+     * Set metadata cache TTL (time-to-live) in seconds
+     *
+     * Controls how long cached mint metadata (keysets, keys, mint info) is considered fresh
+     * before requiring a refresh from the mint server.
+     *
+     * # Arguments
+     *
+     * * `ttl_secs` - Optional TTL in seconds. If None, cache never expires and is always used.
+     *
+     * # Example
+     *
+     * ```ignore
+     * // Cache expires after 5 minutes
+     * wallet.set_metadata_cache_ttl(Some(300));
+     *
+     * // Cache never expires (default)
+     * wallet.set_metadata_cache_ttl(None);
+     * ```
+     */
+    func setMetadataCacheTtl(ttlSecs: UInt64?) 
     
     /**
      * Set refresh token for authentication
@@ -2616,6 +2865,28 @@ open func listTransactions(direction: TransactionDirection?)async throws  -> [Tr
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeTransaction.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Load mint info
+     *
+     * This will get mint info from cache if it is fresh
+     */
+open func loadMintInfo()async throws  -> MintInfo  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_load_mint_info(
+                    self.uniffiClonePointer()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMintInfo_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -3042,6 +3313,33 @@ open func setCat(cat: String)async throws   {
             liftFunc: { $0 },
             errorHandler: FfiConverterTypeFfiError_lift
         )
+}
+    
+    /**
+     * Set metadata cache TTL (time-to-live) in seconds
+     *
+     * Controls how long cached mint metadata (keysets, keys, mint info) is considered fresh
+     * before requiring a refresh from the mint server.
+     *
+     * # Arguments
+     *
+     * * `ttl_secs` - Optional TTL in seconds. If None, cache never expires and is always used.
+     *
+     * # Example
+     *
+     * ```ignore
+     * // Cache expires after 5 minutes
+     * wallet.set_metadata_cache_ttl(Some(300));
+     *
+     * // Cache never expires (default)
+     * wallet.set_metadata_cache_ttl(None);
+     * ```
+     */
+open func setMetadataCacheTtl(ttlSecs: UInt64?)  {try! rustCall() {
+    uniffi_cdk_ffi_fn_method_wallet_set_metadata_cache_ttl(self.uniffiClonePointer(),
+        FfiConverterOptionUInt64.lower(ttlSecs),$0
+    )
+}
 }
     
     /**
@@ -15596,6 +15894,15 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt() != 16024) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_bip353_quote() != 48713) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_human_readable_quote() != 50314) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_lightning_address_quote() != 1357) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_quote() != 24971) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15624,6 +15931,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_set_cat() != 15116) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_set_metadata_cache_ttl_for_all_mints() != 56140) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_set_metadata_cache_ttl_for_mint() != 46832) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_set_refresh_token() != 34303) {
@@ -15731,6 +16044,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_list_transactions() != 20673) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_load_mint_info() != 12995) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_melt() != 33983) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15792,6 +16108,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_set_cat() != 29016) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_set_metadata_cache_ttl() != 24324) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_set_refresh_token() != 28616) {
