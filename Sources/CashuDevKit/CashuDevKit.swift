@@ -737,6 +737,11 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
     func checkAllMintQuotes(mintUrl: MintUrl?) async throws  -> Amount
     
     /**
+     * Check melt quote status
+     */
+    func checkMeltQuote(mintUrl: MintUrl, quoteId: String) async throws  -> MeltQuote
+    
+    /**
      * Check a specific mint quote status
      */
     func checkMintQuote(mintUrl: MintUrl, quoteId: String) async throws  -> MintQuote
@@ -765,6 +770,16 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
      * Get unspent auth proofs for a specific mint
      */
     func getUnspentAuthProofs(mintUrl: MintUrl) async throws  -> [AuthProof]
+    
+    /**
+     * Get a specific wallet from MultiMintWallet by mint URL
+     */
+    func getWallet(mintUrl: MintUrl) async  -> Wallet?
+    
+    /**
+     * Get all wallets from MultiMintWallet
+     */
+    func getWallets() async  -> [Wallet]
     
     /**
      * Check if mint is in wallet
@@ -837,6 +852,11 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
      * Get a melt quote from a specific mint
      */
     func meltQuote(mintUrl: MintUrl, request: String, options: MeltOptions?) async throws  -> MeltQuote
+    
+    /**
+     * Melt tokens
+     */
+    func meltWithMint(mintUrl: MintUrl, quoteId: String) async throws  -> Melted
     
     /**
      * Mint tokens at a specific mint
@@ -1067,6 +1087,26 @@ open func checkAllMintQuotes(mintUrl: MintUrl?)async throws  -> Amount  {
 }
     
     /**
+     * Check melt quote status
+     */
+open func checkMeltQuote(mintUrl: MintUrl, quoteId: String)async throws  -> MeltQuote  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_check_melt_quote(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterString.lower(quoteId)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMeltQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Check a specific mint quote status
      */
 open func checkMintQuote(mintUrl: MintUrl, quoteId: String)async throws  -> MintQuote  {
@@ -1184,6 +1224,48 @@ open func getUnspentAuthProofs(mintUrl: MintUrl)async throws  -> [AuthProof]  {
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeAuthProof.lift,
             errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get a specific wallet from MultiMintWallet by mint URL
+     */
+open func getWallet(mintUrl: MintUrl)async  -> Wallet?  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_get_wallet(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeWallet.lift,
+            errorHandler: nil
+            
+        )
+}
+    
+    /**
+     * Get all wallets from MultiMintWallet
+     */
+open func getWallets()async  -> [Wallet]  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_get_wallets(
+                    self.uniffiClonePointer()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeWallet.lift,
+            errorHandler: nil
+            
         )
 }
     
@@ -1376,6 +1458,26 @@ open func meltQuote(mintUrl: MintUrl, request: String, options: MeltOptions?)asy
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeMeltQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Melt tokens
+     */
+open func meltWithMint(mintUrl: MintUrl, quoteId: String)async throws  -> Melted  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_melt_with_mint(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterString.lower(quoteId)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMelted_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -13715,6 +13817,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeWallet: FfiConverterRustBuffer {
+    typealias SwiftType = Wallet?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeWallet.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeWallet.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeAmount: FfiConverterRustBuffer {
     typealias SwiftType = Amount?
 
@@ -14406,6 +14532,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeWallet: FfiConverterRustBuffer {
+    typealias SwiftType = [Wallet]
+
+    public static func write(_ value: [Wallet], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeWallet.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Wallet] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Wallet]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeWallet.read(from: &buf))
         }
         return seq
     }
@@ -15864,6 +16015,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_check_all_mint_quotes() != 50601) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_check_melt_quote() != 18848) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_check_mint_quote() != 50836) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15880,6 +16034,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_unspent_auth_proofs() != 61414) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_wallet() != 13472) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_wallets() != 19268) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_has_mint() != 31683) {
@@ -15904,6 +16064,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_quote() != 24971) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_with_mint() != 54192) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_mint() != 9447) {
