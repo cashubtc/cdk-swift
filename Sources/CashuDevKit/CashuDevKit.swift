@@ -747,9 +747,53 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
     func checkMintQuote(mintUrl: MintUrl, quoteId: String) async throws  -> MintQuote
     
     /**
+     * Check the state of proofs at a specific mint
+     */
+    func checkProofsState(mintUrl: MintUrl, proofs: [Proof]) async throws  -> [ProofState]
+    
+    /**
      * Consolidate proofs across all mints
      */
     func consolidate() async throws  -> Amount
+    
+    /**
+     * Create a NUT-18 payment request
+     *
+     * Creates a payment request that can be shared to receive Cashu tokens.
+     * The request can include optional amount, description, and spending conditions.
+     *
+     * # Arguments
+     *
+     * * `params` - Parameters for creating the payment request
+     *
+     * # Transport Options
+     *
+     * - `"nostr"` - Uses Nostr relays for privacy-preserving delivery (requires nostr_relays)
+     * - `"http"` - Uses HTTP POST for delivery (requires http_url)
+     * - `"none"` - No transport; token must be delivered out-of-band
+     *
+     * # Example
+     *
+     * ```ignore
+     * let params = CreateRequestParams {
+     * amount: Some(100),
+     * unit: "sat".to_string(),
+     * description: Some("Coffee payment".to_string()),
+     * transport: "http".to_string(),
+     * http_url: Some("https://example.com/callback".to_string()),
+     * ..Default::default()
+     * };
+     * let result = wallet.create_request(params).await?;
+     * println!("Share this request: {}", result.payment_request.to_string_encoded());
+     *
+     * // If using Nostr transport, wait for payment:
+     * if let Some(nostr_info) = result.nostr_wait_info {
+     * let amount = wallet.wait_for_nostr_payment(nostr_info).await?;
+     * println!("Received {} sats", amount);
+     * }
+     * ```
+     */
+    func createRequest(params: CreateRequestParams) async throws  -> CreateRequestResult
     
     /**
      * Query mint for current mint information
@@ -761,10 +805,23 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
      */
     func getBalances() async throws  -> [String: Amount]
     
+    func getMintKeysets(mintUrl: MintUrl) async throws  -> [KeySetInfo]
+    
     /**
      * Get list of mint URLs
      */
     func getMintUrls() async  -> [String]
+    
+    /**
+     * Get token data (mint URL and proofs) from a token
+     *
+     * This method extracts the mint URL and proofs from a token. It will automatically
+     * fetch the keysets from the mint if needed to properly decode the proofs.
+     *
+     * The mint must already be added to the wallet. If the mint is not in the wallet,
+     * use `add_mint` first.
+     */
+    func getTokenData(token: Token) async throws  -> TokenData
     
     /**
      * Get unspent auth proofs for a specific mint
@@ -847,6 +904,25 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
      * * `amount_msat` - Amount to pay in millisatoshis
      */
     func meltLightningAddressQuote(mintUrl: MintUrl, lightningAddress: String, amountMsat: UInt64) async throws  -> MeltQuote
+    
+    /**
+     * Melt specific proofs from a specific mint
+     *
+     * This method allows melting proofs that may not be in the wallet's database,
+     * similar to how `receive_proofs` handles external proofs. The proofs will be
+     * added to the database and used for the melt operation.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for the melt operation
+     * * `quote_id` - The melt quote ID (obtained from `melt_quote`)
+     * * `proofs` - The proofs to melt (can be external proofs not in the wallet's database)
+     *
+     * # Returns
+     *
+     * A `Melted` result containing the payment details and any change proofs
+     */
+    func meltProofs(mintUrl: MintUrl, quoteId: String, proofs: [Proof]) async throws  -> Melted
     
     /**
      * Get a melt quote from a specific mint
@@ -962,6 +1038,33 @@ public protocol MultiMintWalletProtocol: AnyObject, Sendable {
      * Wait for a mint quote to be paid and automatically mint the proofs
      */
     func waitForMintQuote(mintUrl: MintUrl, quoteId: String, splitTarget: SplitTarget, spendingConditions: SpendingConditions?, timeoutSecs: UInt64) async throws  -> [Proof]
+    
+    /**
+     * Wait for a Nostr payment and receive it into the wallet
+     *
+     * This method connects to the Nostr relays specified in the `NostrWaitInfo`,
+     * subscribes for incoming payment events, and receives the first valid
+     * payment into the wallet.
+     *
+     * # Arguments
+     *
+     * * `info` - The Nostr wait info returned from `create_request` when using Nostr transport
+     *
+     * # Returns
+     *
+     * The amount received from the payment.
+     *
+     * # Example
+     *
+     * ```ignore
+     * let result = wallet.create_request(params).await?;
+     * if let Some(nostr_info) = result.nostr_wait_info {
+     * let amount = wallet.wait_for_nostr_payment(nostr_info).await?;
+     * println!("Received {} sats", amount);
+     * }
+     * ```
+     */
+    func waitForNostrPayment(info: NostrWaitInfo) async throws  -> Amount
     
 }
 /**
@@ -1127,6 +1230,26 @@ open func checkMintQuote(mintUrl: MintUrl, quoteId: String)async throws  -> Mint
 }
     
     /**
+     * Check the state of proofs at a specific mint
+     */
+open func checkProofsState(mintUrl: MintUrl, proofs: [Proof])async throws  -> [ProofState]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_check_proofs_state(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterSequenceTypeProof.lower(proofs)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeProofState.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Consolidate proofs across all mints
      */
 open func consolidate()async throws  -> Amount  {
@@ -1142,6 +1265,60 @@ open func consolidate()async throws  -> Amount  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeAmount_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Create a NUT-18 payment request
+     *
+     * Creates a payment request that can be shared to receive Cashu tokens.
+     * The request can include optional amount, description, and spending conditions.
+     *
+     * # Arguments
+     *
+     * * `params` - Parameters for creating the payment request
+     *
+     * # Transport Options
+     *
+     * - `"nostr"` - Uses Nostr relays for privacy-preserving delivery (requires nostr_relays)
+     * - `"http"` - Uses HTTP POST for delivery (requires http_url)
+     * - `"none"` - No transport; token must be delivered out-of-band
+     *
+     * # Example
+     *
+     * ```ignore
+     * let params = CreateRequestParams {
+     * amount: Some(100),
+     * unit: "sat".to_string(),
+     * description: Some("Coffee payment".to_string()),
+     * transport: "http".to_string(),
+     * http_url: Some("https://example.com/callback".to_string()),
+     * ..Default::default()
+     * };
+     * let result = wallet.create_request(params).await?;
+     * println!("Share this request: {}", result.payment_request.to_string_encoded());
+     *
+     * // If using Nostr transport, wait for payment:
+     * if let Some(nostr_info) = result.nostr_wait_info {
+     * let amount = wallet.wait_for_nostr_payment(nostr_info).await?;
+     * println!("Received {} sats", amount);
+     * }
+     * ```
+     */
+open func createRequest(params: CreateRequestParams)async throws  -> CreateRequestResult  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_create_request(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeCreateRequestParams_lower(params)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeCreateRequestResult_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1186,6 +1363,23 @@ open func getBalances()async throws  -> [String: Amount]  {
         )
 }
     
+open func getMintKeysets(mintUrl: MintUrl)async throws  -> [KeySetInfo]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_get_mint_keysets(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeKeySetInfo.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
     /**
      * Get list of mint URLs
      */
@@ -1204,6 +1398,32 @@ open func getMintUrls()async  -> [String]  {
             liftFunc: FfiConverterSequenceString.lift,
             errorHandler: nil
             
+        )
+}
+    
+    /**
+     * Get token data (mint URL and proofs) from a token
+     *
+     * This method extracts the mint URL and proofs from a token. It will automatically
+     * fetch the keysets from the mint if needed to properly decode the proofs.
+     *
+     * The mint must already be added to the wallet. If the mint is not in the wallet,
+     * use `add_mint` first.
+     */
+open func getTokenData(token: Token)async throws  -> TokenData  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_get_token_data(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeToken_lower(token)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeTokenData_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
         )
 }
     
@@ -1438,6 +1658,40 @@ open func meltLightningAddressQuote(mintUrl: MintUrl, lightningAddress: String, 
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeMeltQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Melt specific proofs from a specific mint
+     *
+     * This method allows melting proofs that may not be in the wallet's database,
+     * similar to how `receive_proofs` handles external proofs. The proofs will be
+     * added to the database and used for the melt operation.
+     *
+     * # Arguments
+     *
+     * * `mint_url` - The mint to use for the melt operation
+     * * `quote_id` - The melt quote ID (obtained from `melt_quote`)
+     * * `proofs` - The proofs to melt (can be external proofs not in the wallet's database)
+     *
+     * # Returns
+     *
+     * A `Melted` result containing the payment details and any change proofs
+     */
+open func meltProofs(mintUrl: MintUrl, quoteId: String, proofs: [Proof])async throws  -> Melted  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_melt_proofs(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterString.lower(quoteId),FfiConverterSequenceTypeProof.lower(proofs)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMelted_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1849,6 +2103,48 @@ open func waitForMintQuote(mintUrl: MintUrl, quoteId: String, splitTarget: Split
         )
 }
     
+    /**
+     * Wait for a Nostr payment and receive it into the wallet
+     *
+     * This method connects to the Nostr relays specified in the `NostrWaitInfo`,
+     * subscribes for incoming payment events, and receives the first valid
+     * payment into the wallet.
+     *
+     * # Arguments
+     *
+     * * `info` - The Nostr wait info returned from `create_request` when using Nostr transport
+     *
+     * # Returns
+     *
+     * The amount received from the payment.
+     *
+     * # Example
+     *
+     * ```ignore
+     * let result = wallet.create_request(params).await?;
+     * if let Some(nostr_info) = result.nostr_wait_info {
+     * let amount = wallet.wait_for_nostr_payment(nostr_info).await?;
+     * println!("Received {} sats", amount);
+     * }
+     * ```
+     */
+open func waitForNostrPayment(info: NostrWaitInfo)async throws  -> Amount  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_multimintwallet_wait_for_nostr_payment(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeNostrWaitInfo_lower(info)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeAmount_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
 
 }
 
@@ -1900,6 +2196,419 @@ public func FfiConverterTypeMultiMintWallet_lift(_ pointer: UnsafeMutableRawPoin
 #endif
 public func FfiConverterTypeMultiMintWallet_lower(_ value: MultiMintWallet) -> UnsafeMutableRawPointer {
     return FfiConverterTypeMultiMintWallet.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Information needed to wait for an incoming Nostr payment
+ *
+ * Returned by `create_request` when the transport is `nostr`. Pass this to
+ * `wait_for_nostr_payment` to connect, subscribe, and receive the incoming
+ * payment on the specified relays.
+ */
+public protocol NostrWaitInfoProtocol: AnyObject, Sendable {
+    
+    /**
+     * Get the recipient public key as a hex string
+     */
+    func pubkey()  -> String
+    
+    /**
+     * Get the Nostr relays to connect to
+     */
+    func relays()  -> [String]
+    
+}
+/**
+ * Information needed to wait for an incoming Nostr payment
+ *
+ * Returned by `create_request` when the transport is `nostr`. Pass this to
+ * `wait_for_nostr_payment` to connect, subscribe, and receive the incoming
+ * payment on the specified relays.
+ */
+open class NostrWaitInfo: NostrWaitInfoProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_cdk_ffi_fn_clone_nostrwaitinfo(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_cdk_ffi_fn_free_nostrwaitinfo(pointer, $0) }
+    }
+
+    
+
+    
+    /**
+     * Get the recipient public key as a hex string
+     */
+open func pubkey() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_nostrwaitinfo_pubkey(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get the Nostr relays to connect to
+     */
+open func relays() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_nostrwaitinfo_relays(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNostrWaitInfo: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = NostrWaitInfo
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NostrWaitInfo {
+        return NostrWaitInfo(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: NostrWaitInfo) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NostrWaitInfo {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: NostrWaitInfo, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrWaitInfo_lift(_ pointer: UnsafeMutableRawPointer) throws -> NostrWaitInfo {
+    return try FfiConverterTypeNostrWaitInfo.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrWaitInfo_lower(_ value: NostrWaitInfo) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeNostrWaitInfo.lower(value)
+}
+
+
+
+
+
+
+/**
+ * NUT-18 Payment Request
+ *
+ * A payment request that can be shared to request Cashu tokens.
+ * Encoded as a string with the `creqA` prefix.
+ */
+public protocol PaymentRequestProtocol: AnyObject, Sendable {
+    
+    /**
+     * Get the requested amount
+     */
+    func amount()  -> Amount?
+    
+    /**
+     * Get the description
+     */
+    func description()  -> String?
+    
+    /**
+     * Get the list of acceptable mint URLs
+     */
+    func mints()  -> [String]?
+    
+    /**
+     * Get the payment ID
+     */
+    func paymentId()  -> String?
+    
+    /**
+     * Get whether this is a single-use request
+     */
+    func singleUse()  -> Bool?
+    
+    /**
+     * Encode the payment request to a string
+     */
+    func toStringEncoded()  -> String
+    
+    /**
+     * Get the transports for delivering the payment
+     */
+    func transports()  -> [Transport]
+    
+    /**
+     * Get the currency unit
+     */
+    func unit()  -> CurrencyUnit?
+    
+}
+/**
+ * NUT-18 Payment Request
+ *
+ * A payment request that can be shared to request Cashu tokens.
+ * Encoded as a string with the `creqA` prefix.
+ */
+open class PaymentRequest: PaymentRequestProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_cdk_ffi_fn_clone_paymentrequest(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_cdk_ffi_fn_free_paymentrequest(pointer, $0) }
+    }
+
+    
+    /**
+     * Parse a payment request from its encoded string representation
+     */
+public static func fromString(encoded: String)throws  -> PaymentRequest  {
+    return try  FfiConverterTypePaymentRequest_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_constructor_paymentrequest_from_string(
+        FfiConverterString.lower(encoded),$0
+    )
+})
+}
+    
+
+    
+    /**
+     * Get the requested amount
+     */
+open func amount() -> Amount?  {
+    return try!  FfiConverterOptionTypeAmount.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_amount(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get the description
+     */
+open func description() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_description(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get the list of acceptable mint URLs
+     */
+open func mints() -> [String]?  {
+    return try!  FfiConverterOptionSequenceString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_mints(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get the payment ID
+     */
+open func paymentId() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_payment_id(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get whether this is a single-use request
+     */
+open func singleUse() -> Bool?  {
+    return try!  FfiConverterOptionBool.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_single_use(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Encode the payment request to a string
+     */
+open func toStringEncoded() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_to_string_encoded(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get the transports for delivering the payment
+     */
+open func transports() -> [Transport]  {
+    return try!  FfiConverterSequenceTypeTransport.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_transports(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get the currency unit
+     */
+open func unit() -> CurrencyUnit?  {
+    return try!  FfiConverterOptionTypeCurrencyUnit.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_unit(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePaymentRequest: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = PaymentRequest
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> PaymentRequest {
+        return PaymentRequest(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: PaymentRequest) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PaymentRequest {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: PaymentRequest, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePaymentRequest_lift(_ pointer: UnsafeMutableRawPointer) throws -> PaymentRequest {
+    return try FfiConverterTypePaymentRequest.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePaymentRequest_lower(_ value: PaymentRequest) -> UnsafeMutableRawPointer {
+    return FfiConverterTypePaymentRequest.lower(value)
 }
 
 
@@ -2177,6 +2886,11 @@ public protocol TokenProtocol: AnyObject, Sendable {
     func p2pkRefundPubkeys()  -> [String]
     
     /**
+     * Get proofs from the token
+     */
+    func proofs(mintKeysets: [KeySetInfo]) throws  -> [Proof]
+    
+    /**
      * Get proofs from the token (simplified - no keyset filtering for now)
      */
     func proofsSimple() throws  -> [Proof]
@@ -2345,6 +3059,17 @@ open func p2pkPubkeys() -> [String]  {
 open func p2pkRefundPubkeys() -> [String]  {
     return try!  FfiConverterSequenceString.lift(try! rustCall() {
     uniffi_cdk_ffi_fn_method_token_p2pk_refund_pubkeys(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Get proofs from the token
+     */
+open func proofs(mintKeysets: [KeySetInfo])throws  -> [Proof]  {
+    return try  FfiConverterSequenceTypeProof.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_token_proofs(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeKeySetInfo.lower(mintKeysets),$0
     )
 })
 }
@@ -2559,6 +3284,24 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func meltLightningAddressQuote(lightningAddress: String, amountMsat: Amount) async throws  -> MeltQuote
     
     /**
+     * Melt specific proofs
+     *
+     * This method allows melting proofs that may not be in the wallet's database,
+     * similar to how `receive_proofs` handles external proofs. The proofs will be
+     * added to the database and used for the melt operation.
+     *
+     * # Arguments
+     *
+     * * `quote_id` - The melt quote ID (obtained from `melt_quote`)
+     * * `proofs` - The proofs to melt (can be external proofs not in the wallet's database)
+     *
+     * # Returns
+     *
+     * A `Melted` result containing the payment details and any change proofs
+     */
+    func meltProofs(quoteId: String, proofs: [Proof]) async throws  -> Melted
+    
+    /**
      * Get a melt quote
      */
     func meltQuote(request: String, options: MeltOptions?) async throws  -> MeltQuote
@@ -2592,6 +3335,19 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Get the mint URL
      */
     func mintUrl()  -> MintUrl
+    
+    /**
+     * Pay a NUT-18 payment request
+     *
+     * This method prepares and sends a payment for the given payment request.
+     * It will use the Nostr or HTTP transport specified in the request.
+     *
+     * # Arguments
+     *
+     * * `payment_request` - The NUT-18 payment request to pay
+     * * `custom_amount` - Optional amount to pay (required if request has no amount)
+     */
+    func payRequest(paymentRequest: PaymentRequest, customAmount: Amount?) async throws 
     
     /**
      * Prepare a send operation
@@ -3108,6 +3864,39 @@ open func meltLightningAddressQuote(lightningAddress: String, amountMsat: Amount
 }
     
     /**
+     * Melt specific proofs
+     *
+     * This method allows melting proofs that may not be in the wallet's database,
+     * similar to how `receive_proofs` handles external proofs. The proofs will be
+     * added to the database and used for the melt operation.
+     *
+     * # Arguments
+     *
+     * * `quote_id` - The melt quote ID (obtained from `melt_quote`)
+     * * `proofs` - The proofs to melt (can be external proofs not in the wallet's database)
+     *
+     * # Returns
+     *
+     * A `Melted` result containing the payment details and any change proofs
+     */
+open func meltProofs(quoteId: String, proofs: [Proof])async throws  -> Melted  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_melt_proofs(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(quoteId),FfiConverterSequenceTypeProof.lower(proofs)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMelted_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Get a melt quote
      */
 open func meltQuote(request: String, options: MeltOptions?)async throws  -> MeltQuote  {
@@ -3235,6 +4024,34 @@ open func mintUrl() -> MintUrl  {
     uniffi_cdk_ffi_fn_method_wallet_mint_url(self.uniffiClonePointer(),$0
     )
 })
+}
+    
+    /**
+     * Pay a NUT-18 payment request
+     *
+     * This method prepares and sends a payment for the given payment request.
+     * It will use the Nostr or HTTP transport specified in the request.
+     *
+     * # Arguments
+     *
+     * * `payment_request` - The NUT-18 payment request to pay
+     * * `custom_amount` - Optional amount to pay (required if request has no amount)
+     */
+open func payRequest(paymentRequest: PaymentRequest, customAmount: Amount?)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_pay_request(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypePaymentRequest_lower(paymentRequest),FfiConverterOptionTypeAmount.lower(customAmount)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
 }
     
     /**
@@ -7726,6 +8543,275 @@ public func FfiConverterTypeContactInfo_lower(_ value: ContactInfo) -> RustBuffe
 
 
 /**
+ * Parameters for creating a NUT-18 payment request
+ */
+public struct CreateRequestParams {
+    /**
+     * Optional amount to request (in smallest unit for the currency)
+     */
+    public let amount: UInt64?
+    /**
+     * Currency unit (e.g., "sat", "msat", "usd")
+     */
+    public let unit: String
+    /**
+     * Optional description for the request
+     */
+    public let description: String?
+    /**
+     * Optional public keys for P2PK spending conditions (hex-encoded)
+     */
+    public let pubkeys: [String]?
+    /**
+     * Required number of signatures for multisig (defaults to 1)
+     */
+    public let numSigs: UInt64
+    /**
+     * Optional HTLC hash (hex-encoded SHA-256)
+     */
+    public let hash: String?
+    /**
+     * Optional HTLC preimage (alternative to hash)
+     */
+    public let preimage: String?
+    /**
+     * Transport type: "nostr", "http", or "none"
+     */
+    public let transport: String
+    /**
+     * HTTP URL for HTTP transport (required if transport is "http")
+     */
+    public let httpUrl: String?
+    /**
+     * Nostr relay URLs (required if transport is "nostr")
+     */
+    public let nostrRelays: [String]?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Optional amount to request (in smallest unit for the currency)
+         */amount: UInt64?, 
+        /**
+         * Currency unit (e.g., "sat", "msat", "usd")
+         */unit: String, 
+        /**
+         * Optional description for the request
+         */description: String?, 
+        /**
+         * Optional public keys for P2PK spending conditions (hex-encoded)
+         */pubkeys: [String]?, 
+        /**
+         * Required number of signatures for multisig (defaults to 1)
+         */numSigs: UInt64, 
+        /**
+         * Optional HTLC hash (hex-encoded SHA-256)
+         */hash: String?, 
+        /**
+         * Optional HTLC preimage (alternative to hash)
+         */preimage: String?, 
+        /**
+         * Transport type: "nostr", "http", or "none"
+         */transport: String, 
+        /**
+         * HTTP URL for HTTP transport (required if transport is "http")
+         */httpUrl: String?, 
+        /**
+         * Nostr relay URLs (required if transport is "nostr")
+         */nostrRelays: [String]?) {
+        self.amount = amount
+        self.unit = unit
+        self.description = description
+        self.pubkeys = pubkeys
+        self.numSigs = numSigs
+        self.hash = hash
+        self.preimage = preimage
+        self.transport = transport
+        self.httpUrl = httpUrl
+        self.nostrRelays = nostrRelays
+    }
+}
+
+#if compiler(>=6)
+extension CreateRequestParams: Sendable {}
+#endif
+
+
+extension CreateRequestParams: Equatable, Hashable {
+    public static func ==(lhs: CreateRequestParams, rhs: CreateRequestParams) -> Bool {
+        if lhs.amount != rhs.amount {
+            return false
+        }
+        if lhs.unit != rhs.unit {
+            return false
+        }
+        if lhs.description != rhs.description {
+            return false
+        }
+        if lhs.pubkeys != rhs.pubkeys {
+            return false
+        }
+        if lhs.numSigs != rhs.numSigs {
+            return false
+        }
+        if lhs.hash != rhs.hash {
+            return false
+        }
+        if lhs.preimage != rhs.preimage {
+            return false
+        }
+        if lhs.transport != rhs.transport {
+            return false
+        }
+        if lhs.httpUrl != rhs.httpUrl {
+            return false
+        }
+        if lhs.nostrRelays != rhs.nostrRelays {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(amount)
+        hasher.combine(unit)
+        hasher.combine(description)
+        hasher.combine(pubkeys)
+        hasher.combine(numSigs)
+        hasher.combine(hash)
+        hasher.combine(preimage)
+        hasher.combine(transport)
+        hasher.combine(httpUrl)
+        hasher.combine(nostrRelays)
+    }
+}
+
+extension CreateRequestParams: Codable {}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCreateRequestParams: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CreateRequestParams {
+        return
+            try CreateRequestParams(
+                amount: FfiConverterOptionUInt64.read(from: &buf), 
+                unit: FfiConverterString.read(from: &buf), 
+                description: FfiConverterOptionString.read(from: &buf), 
+                pubkeys: FfiConverterOptionSequenceString.read(from: &buf), 
+                numSigs: FfiConverterUInt64.read(from: &buf), 
+                hash: FfiConverterOptionString.read(from: &buf), 
+                preimage: FfiConverterOptionString.read(from: &buf), 
+                transport: FfiConverterString.read(from: &buf), 
+                httpUrl: FfiConverterOptionString.read(from: &buf), 
+                nostrRelays: FfiConverterOptionSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CreateRequestParams, into buf: inout [UInt8]) {
+        FfiConverterOptionUInt64.write(value.amount, into: &buf)
+        FfiConverterString.write(value.unit, into: &buf)
+        FfiConverterOptionString.write(value.description, into: &buf)
+        FfiConverterOptionSequenceString.write(value.pubkeys, into: &buf)
+        FfiConverterUInt64.write(value.numSigs, into: &buf)
+        FfiConverterOptionString.write(value.hash, into: &buf)
+        FfiConverterOptionString.write(value.preimage, into: &buf)
+        FfiConverterString.write(value.transport, into: &buf)
+        FfiConverterOptionString.write(value.httpUrl, into: &buf)
+        FfiConverterOptionSequenceString.write(value.nostrRelays, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCreateRequestParams_lift(_ buf: RustBuffer) throws -> CreateRequestParams {
+    return try FfiConverterTypeCreateRequestParams.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCreateRequestParams_lower(_ value: CreateRequestParams) -> RustBuffer {
+    return FfiConverterTypeCreateRequestParams.lower(value)
+}
+
+
+/**
+ * Result of creating a payment request
+ *
+ * Contains the payment request and optionally the Nostr wait info
+ * if the transport was set to "nostr".
+ */
+public struct CreateRequestResult {
+    /**
+     * The payment request to share with the payer
+     */
+    public let paymentRequest: PaymentRequest
+    /**
+     * Nostr wait info (present when transport is "nostr")
+     */
+    public let nostrWaitInfo: NostrWaitInfo?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The payment request to share with the payer
+         */paymentRequest: PaymentRequest, 
+        /**
+         * Nostr wait info (present when transport is "nostr")
+         */nostrWaitInfo: NostrWaitInfo?) {
+        self.paymentRequest = paymentRequest
+        self.nostrWaitInfo = nostrWaitInfo
+    }
+}
+
+#if compiler(>=6)
+extension CreateRequestResult: Sendable {}
+#endif
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCreateRequestResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CreateRequestResult {
+        return
+            try CreateRequestResult(
+                paymentRequest: FfiConverterTypePaymentRequest.read(from: &buf), 
+                nostrWaitInfo: FfiConverterOptionTypeNostrWaitInfo.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CreateRequestResult, into buf: inout [UInt8]) {
+        FfiConverterTypePaymentRequest.write(value.paymentRequest, into: &buf)
+        FfiConverterOptionTypeNostrWaitInfo.write(value.nostrWaitInfo, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCreateRequestResult_lift(_ buf: RustBuffer) throws -> CreateRequestResult {
+    return try FfiConverterTypeCreateRequestResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCreateRequestResult_lower(_ value: CreateRequestResult) -> RustBuffer {
+    return FfiConverterTypeCreateRequestResult.lower(value)
+}
+
+
+/**
  * Decoded invoice or offer information
  */
 public struct DecodedInvoice {
@@ -11526,6 +12612,107 @@ public func FfiConverterTypeSupportedSettings_lower(_ value: SupportedSettings) 
 
 
 /**
+ * Data extracted from a token including mint URL, proofs, and memo
+ */
+public struct TokenData {
+    /**
+     * The mint URL from the token
+     */
+    public let mintUrl: MintUrl
+    /**
+     * The proofs contained in the token
+     */
+    public let proofs: [Proof]
+    /**
+     * The memo from the token, if present
+     */
+    public let memo: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The mint URL from the token
+         */mintUrl: MintUrl, 
+        /**
+         * The proofs contained in the token
+         */proofs: [Proof], 
+        /**
+         * The memo from the token, if present
+         */memo: String?) {
+        self.mintUrl = mintUrl
+        self.proofs = proofs
+        self.memo = memo
+    }
+}
+
+#if compiler(>=6)
+extension TokenData: Sendable {}
+#endif
+
+
+extension TokenData: Equatable, Hashable {
+    public static func ==(lhs: TokenData, rhs: TokenData) -> Bool {
+        if lhs.mintUrl != rhs.mintUrl {
+            return false
+        }
+        if lhs.proofs != rhs.proofs {
+            return false
+        }
+        if lhs.memo != rhs.memo {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(mintUrl)
+        hasher.combine(proofs)
+        hasher.combine(memo)
+    }
+}
+
+extension TokenData: Codable {}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTokenData: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TokenData {
+        return
+            try TokenData(
+                mintUrl: FfiConverterTypeMintUrl.read(from: &buf), 
+                proofs: FfiConverterSequenceTypeProof.read(from: &buf), 
+                memo: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TokenData, into buf: inout [UInt8]) {
+        FfiConverterTypeMintUrl.write(value.mintUrl, into: &buf)
+        FfiConverterSequenceTypeProof.write(value.proofs, into: &buf)
+        FfiConverterOptionString.write(value.memo, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenData_lift(_ buf: RustBuffer) throws -> TokenData {
+    return try FfiConverterTypeTokenData.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenData_lower(_ value: TokenData) -> RustBuffer {
+    return FfiConverterTypeTokenData.lower(value)
+}
+
+
+/**
  * FFI-compatible Transaction
  */
 public struct Transaction {
@@ -11965,6 +13152,107 @@ public func FfiConverterTypeTransferResult_lift(_ buf: RustBuffer) throws -> Tra
 #endif
 public func FfiConverterTypeTransferResult_lower(_ value: TransferResult) -> RustBuffer {
     return FfiConverterTypeTransferResult.lower(value)
+}
+
+
+/**
+ * Transport for payment request delivery
+ */
+public struct Transport {
+    /**
+     * Transport type
+     */
+    public let transportType: TransportType
+    /**
+     * Target (e.g., nprofile for Nostr, URL for HTTP)
+     */
+    public let target: String
+    /**
+     * Optional tags
+     */
+    public let tags: [[String]]?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Transport type
+         */transportType: TransportType, 
+        /**
+         * Target (e.g., nprofile for Nostr, URL for HTTP)
+         */target: String, 
+        /**
+         * Optional tags
+         */tags: [[String]]?) {
+        self.transportType = transportType
+        self.target = target
+        self.tags = tags
+    }
+}
+
+#if compiler(>=6)
+extension Transport: Sendable {}
+#endif
+
+
+extension Transport: Equatable, Hashable {
+    public static func ==(lhs: Transport, rhs: Transport) -> Bool {
+        if lhs.transportType != rhs.transportType {
+            return false
+        }
+        if lhs.target != rhs.target {
+            return false
+        }
+        if lhs.tags != rhs.tags {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(transportType)
+        hasher.combine(target)
+        hasher.combine(tags)
+    }
+}
+
+extension Transport: Codable {}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTransport: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Transport {
+        return
+            try Transport(
+                transportType: FfiConverterTypeTransportType.read(from: &buf), 
+                target: FfiConverterString.read(from: &buf), 
+                tags: FfiConverterOptionSequenceSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Transport, into buf: inout [UInt8]) {
+        FfiConverterTypeTransportType.write(value.transportType, into: &buf)
+        FfiConverterString.write(value.target, into: &buf)
+        FfiConverterOptionSequenceSequenceString.write(value.tags, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTransport_lift(_ buf: RustBuffer) throws -> Transport {
+    return try FfiConverterTypeTransport.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTransport_lower(_ value: Transport) -> RustBuffer {
+    return FfiConverterTypeTransport.lower(value)
 }
 
 
@@ -13543,6 +14831,87 @@ extension TransferMode: Codable {}
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Transport type for payment request delivery
+ */
+
+public enum TransportType {
+    
+    /**
+     * Nostr transport (privacy-preserving)
+     */
+    case nostr
+    /**
+     * HTTP POST transport
+     */
+    case httpPost
+}
+
+
+#if compiler(>=6)
+extension TransportType: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTransportType: FfiConverterRustBuffer {
+    typealias SwiftType = TransportType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TransportType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .nostr
+        
+        case 2: return .httpPost
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: TransportType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .nostr:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .httpPost:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTransportType_lift(_ buf: RustBuffer) throws -> TransportType {
+    return try FfiConverterTypeTransportType.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTransportType_lower(_ value: TransportType) -> RustBuffer {
+    return FfiConverterTypeTransportType.lower(value)
+}
+
+
+extension TransportType: Equatable, Hashable {}
+
+extension TransportType: Codable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * FFI-safe wallet database backend selection
  */
 
@@ -13809,6 +15178,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeNostrWaitInfo: FfiConverterRustBuffer {
+    typealias SwiftType = NostrWaitInfo?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeNostrWaitInfo.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeNostrWaitInfo.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -14465,6 +15858,30 @@ fileprivate struct FfiConverterOptionSequenceTypeSpendingConditions: FfiConverte
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionSequenceSequenceString: FfiConverterRustBuffer {
+    typealias SwiftType = [[String]]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceSequenceString.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceSequenceString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceUInt64: FfiConverterRustBuffer {
     typealias SwiftType = [UInt64]
 
@@ -14965,6 +16382,31 @@ fileprivate struct FfiConverterSequenceTypeTransaction: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeTransport: FfiConverterRustBuffer {
+    typealias SwiftType = [Transport]
+
+    public static func write(_ value: [Transport], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTransport.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Transport] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Transport]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTransport.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeCurrencyUnit: FfiConverterRustBuffer {
     typealias SwiftType = [CurrencyUnit]
 
@@ -15032,6 +16474,31 @@ fileprivate struct FfiConverterSequenceTypeSpendingConditions: FfiConverterRustB
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeSpendingConditions.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceSequenceString: FfiConverterRustBuffer {
+    typealias SwiftType = [[String]]
+
+    public static func write(_ value: [[String]], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterSequenceString.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [[String]] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [[String]]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterSequenceString.read(from: &buf))
         }
         return seq
     }
@@ -15336,6 +16803,16 @@ public func decodeContactInfo(json: String)throws  -> ContactInfo  {
 })
 }
 /**
+ * Decode CreateRequestParams from JSON string
+ */
+public func decodeCreateRequestParams(json: String)throws  -> CreateRequestParams  {
+    return try  FfiConverterTypeCreateRequestParams_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_func_decode_create_request_params(
+        FfiConverterString.lower(json),$0
+    )
+})
+}
+/**
  * Decode a bolt11 invoice or bolt12 offer from a string
  *
  * This function attempts to parse the input as a bolt11 invoice first,
@@ -15448,6 +16925,16 @@ public func decodeNuts(json: String)throws  -> Nuts  {
 })
 }
 /**
+ * Decode a payment request from its encoded string representation
+ */
+public func decodePaymentRequest(encoded: String)throws  -> PaymentRequest  {
+    return try  FfiConverterTypePaymentRequest_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_func_decode_payment_request(
+        FfiConverterString.lower(encoded),$0
+    )
+})
+}
+/**
  * Decode ProofInfo from JSON string
  */
 public func decodeProofInfo(json: String)throws  -> ProofInfo  {
@@ -15544,6 +17031,16 @@ public func encodeContactInfo(info: ContactInfo)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
     uniffi_cdk_ffi_fn_func_encode_contact_info(
         FfiConverterTypeContactInfo_lower(info),$0
+    )
+})
+}
+/**
+ * Encode CreateRequestParams to JSON string
+ */
+public func encodeCreateRequestParams(params: CreateRequestParams)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_func_encode_create_request_params(
+        FfiConverterTypeCreateRequestParams_lower(params),$0
     )
 })
 }
@@ -15859,6 +17356,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_func_decode_contact_info() != 40231) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_func_decode_create_request_params() != 8102) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_func_decode_invoice() != 20311) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15884,6 +17384,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_decode_nuts() != 23702) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_func_decode_payment_request() != 36715) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_decode_proof_info() != 19899) {
@@ -15914,6 +17417,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_encode_contact_info() != 44629) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_func_encode_create_request_params() != 21001) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_encode_key_set() != 10879) {
@@ -16021,7 +17527,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_check_mint_quote() != 50836) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_check_proofs_state() != 36213) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_consolidate() != 51458) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_create_request() != 21388) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_fetch_mint_info() != 30024) {
@@ -16030,7 +17542,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_balances() != 10177) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_mint_keysets() != 51858) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_mint_urls() != 40736) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_token_data() != 18639) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_get_unspent_auth_proofs() != 61414) {
@@ -16061,6 +17579,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_lightning_address_quote() != 1357) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_proofs() != 19419) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_melt_quote() != 24971) {
@@ -16123,6 +17644,39 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_multimintwallet_wait_for_mint_quote() != 59842) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_multimintwallet_wait_for_nostr_payment() != 61245) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_nostrwaitinfo_pubkey() != 8372) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_nostrwaitinfo_relays() != 40910) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_amount() != 17196) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_description() != 30652) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_mints() != 56555) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_payment_id() != 12834) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_single_use() != 17480) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_to_string_encoded() != 63792) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_transports() != 60834) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_unit() != 31184) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_preparedsend_amount() != 62180) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -16160,6 +17714,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_token_p2pk_refund_pubkeys() != 16072) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_token_proofs() != 60002) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_token_proofs_simple() != 23555) {
@@ -16225,6 +17782,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_melt_lightning_address_quote() != 35934) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_melt_proofs() != 21294) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_melt_quote() != 16819) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -16244,6 +17804,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_mint_url() != 6804) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_pay_request() != 63052) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_prepare_send() != 18579) {
@@ -16559,6 +18122,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_multimintwallet_new_with_proxy() != 52208) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_constructor_paymentrequest_from_string() != 4890) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_token_decode() != 17843) {
