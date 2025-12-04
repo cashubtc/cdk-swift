@@ -29,13 +29,22 @@ jobs:
         run: |
           # Handle both repository_dispatch and workflow_dispatch
           if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            echo "version=${{ github.event.client_payload.version }}" >> $GITHUB_OUTPUT
+            VERSION="${{ github.event.client_payload.version }}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "cdk_repo=${{ github.event.client_payload.cdk_repo || 'cashubtc/cdk' }}" >> $GITHUB_OUTPUT
             echo "cdk_ref=${{ github.event.client_payload.cdk_ref || github.event.client_payload.version }}" >> $GITHUB_OUTPUT
           else
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            VERSION="${{ github.event.inputs.version }}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "cdk_repo=${{ github.event.inputs.cdk_repo }}" >> $GITHUB_OUTPUT
             echo "cdk_ref=${{ github.event.inputs.cdk_ref }}" >> $GITHUB_OUTPUT
+          fi
+
+          # Check if version contains 'rc' (case insensitive) to mark as prerelease
+          if echo "$VERSION" | grep -qi "rc"; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Checkout cdk-swift
@@ -147,6 +156,6 @@ jobs:
           files: |
             cdk-swift/cdkFFI.xcframework.zip
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.vars.outputs.is_prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
