@@ -2981,6 +2981,17 @@ public static func decode(encodedToken: String)throws  -> Token  {
 }
     
     /**
+     * Decode token from raw bytes
+     */
+public static func fromRawBytes(bytes: Data)throws  -> Token  {
+    return try  FfiConverterTypeToken_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_constructor_token_from_raw_bytes(
+        FfiConverterData.lower(bytes),$0
+    )
+})
+}
+    
+    /**
      * Create a new Token from string
      */
 public static func fromString(encodedToken: String)throws  -> Token  {
@@ -18128,6 +18139,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_token_decode() != 17843) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_constructor_token_from_raw_bytes() != 53011) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_token_from_string() != 43724) {
