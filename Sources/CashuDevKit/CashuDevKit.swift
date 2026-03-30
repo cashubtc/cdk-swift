@@ -2657,6 +2657,11 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func checkSendStatus(operationId: String) async throws  -> Bool
     
     /**
+     * Fetch active keyset with lowest fees
+     */
+    func fetchActiveKeyset() async throws  -> KeySetInfo
+    
+    /**
      * Get mint info from mint
      */
     func fetchMintInfo() async throws  -> MintInfo?
@@ -2680,9 +2685,29 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func getActiveKeyset() async throws  -> KeySetInfo
     
     /**
+     * Get fee for count of proofs in a keyset
+     */
+    func getKeysetCountFee(keysetId: String, count: UInt64) async throws  -> Amount
+    
+    /**
+     * Get fees and amounts for all keysets
+     */
+    func getKeysetFeesAndAmounts() async throws  -> [String: FeeAndAmounts]
+    
+    /**
+     * Get fees and amounts for a specific keyset
+     */
+    func getKeysetFeesAndAmountsById(keysetId: String) async throws  -> FeeAndAmounts
+    
+    /**
      * Get fees for a specific keyset ID
      */
     func getKeysetFeesById(keysetId: String) async throws  -> UInt64
+    
+    /**
+     * Get keysets for this wallet's unit with filter
+     */
+    func getMintKeysets(filter: KeysetFilter) async throws  -> [KeySetInfo]
     
     /**
      * Get all pending send operations
@@ -2718,11 +2743,21 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func listTransactions(direction: TransactionDirection?) async throws  -> [Transaction]
     
     /**
+     * Load keys for a specific keyset
+     */
+    func loadKeysetKeys(keysetId: String) async throws  -> Keys
+    
+    /**
      * Load mint info
      *
      * This will get mint info from cache if it is fresh
      */
     func loadMintInfo() async throws  -> MintInfo
+    
+    /**
+     * Load active keysets
+     */
+    func loadMintKeysets() async throws  -> [KeySetInfo]
     
     /**
      * Get a quote for a BIP353 melt
@@ -3181,6 +3216,26 @@ open func checkSendStatus(operationId: String)async throws  -> Bool  {
 }
     
     /**
+     * Fetch active keyset with lowest fees
+     */
+open func fetchActiveKeyset()async throws  -> KeySetInfo  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_fetch_active_keyset(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeKeySetInfo_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Get mint info from mint
      */
 open func fetchMintInfo()async throws  -> MintInfo?  {
@@ -3249,6 +3304,66 @@ open func getActiveKeyset()async throws  -> KeySetInfo  {
 }
     
     /**
+     * Get fee for count of proofs in a keyset
+     */
+open func getKeysetCountFee(keysetId: String, count: UInt64)async throws  -> Amount  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_get_keyset_count_fee(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(keysetId),FfiConverterUInt64.lower(count)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeAmount_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get fees and amounts for all keysets
+     */
+open func getKeysetFeesAndAmounts()async throws  -> [String: FeeAndAmounts]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_get_keyset_fees_and_amounts(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterDictionaryStringTypeFeeAndAmounts.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get fees and amounts for a specific keyset
+     */
+open func getKeysetFeesAndAmountsById(keysetId: String)async throws  -> FeeAndAmounts  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_get_keyset_fees_and_amounts_by_id(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(keysetId)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeFeeAndAmounts_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Get fees for a specific keyset ID
      */
 open func getKeysetFeesById(keysetId: String)async throws  -> UInt64  {
@@ -3264,6 +3379,26 @@ open func getKeysetFeesById(keysetId: String)async throws  -> UInt64  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
             freeFunc: ffi_cdk_ffi_rust_future_free_u64,
             liftFunc: FfiConverterUInt64.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get keysets for this wallet's unit with filter
+     */
+open func getMintKeysets(filter: KeysetFilter)async throws  -> [KeySetInfo]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_get_mint_keysets(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeKeysetFilter_lower(filter)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeKeySetInfo.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -3392,6 +3527,26 @@ open func listTransactions(direction: TransactionDirection?)async throws  -> [Tr
 }
     
     /**
+     * Load keys for a specific keyset
+     */
+open func loadKeysetKeys(keysetId: String)async throws  -> Keys  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_load_keyset_keys(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(keysetId)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeKeys_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Load mint info
      *
      * This will get mint info from cache if it is fresh
@@ -3409,6 +3564,26 @@ open func loadMintInfo()async throws  -> MintInfo  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeMintInfo_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Load active keysets
+     */
+open func loadMintKeysets()async throws  -> [KeySetInfo]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_load_mint_keysets(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeKeySetInfo.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -11191,6 +11366,73 @@ public func FfiConverterTypeDecodedInvoice_lower(_ value: DecodedInvoice) -> Rus
 
 
 /**
+ * FFI-compatible FeeAndAmounts
+ */
+public struct FeeAndAmounts: Equatable, Hashable, Codable {
+    /**
+     * Input fee per thousand (ppk)
+     */
+    public let fee: UInt64
+    /**
+     * Available amounts for this keyset
+     */
+    public let amounts: [UInt64]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Input fee per thousand (ppk)
+         */fee: UInt64, 
+        /**
+         * Available amounts for this keyset
+         */amounts: [UInt64]) {
+        self.fee = fee
+        self.amounts = amounts
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension FeeAndAmounts: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFeeAndAmounts: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FeeAndAmounts {
+        return
+            try FeeAndAmounts(
+                fee: FfiConverterUInt64.read(from: &buf), 
+                amounts: FfiConverterSequenceUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FeeAndAmounts, into buf: inout [UInt8]) {
+        FfiConverterUInt64.write(value.fee, into: &buf)
+        FfiConverterSequenceUInt64.write(value.amounts, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeeAndAmounts_lift(_ buf: RustBuffer) throws -> FeeAndAmounts {
+    return try FfiConverterTypeFeeAndAmounts.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFeeAndAmounts_lower(_ value: FeeAndAmounts) -> RustBuffer {
+    return FfiConverterTypeFeeAndAmounts.lower(value)
+}
+
+
+/**
  * FFI-compatible FinalizedMelt result
  */
 public struct FinalizedMelt: Equatable, Hashable, Codable {
@@ -15899,6 +16141,80 @@ public func FfiConverterTypeFfiError_lower(_ value: FfiError) -> RustBuffer {
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * FFI-compatible KeysetFilter
+ */
+
+public enum KeysetFilter: Equatable, Hashable, Codable {
+    
+    /**
+     * Only return active keysets
+     */
+    case active
+    /**
+     * Return all keysets (active and inactive)
+     */
+    case all
+
+
+
+}
+
+#if compiler(>=6)
+extension KeysetFilter: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeKeysetFilter: FfiConverterRustBuffer {
+    typealias SwiftType = KeysetFilter
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> KeysetFilter {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .active
+        
+        case 2: return .all
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: KeysetFilter, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .active:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .all:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeKeysetFilter_lift(_ buf: RustBuffer) throws -> KeysetFilter {
+    return try FfiConverterTypeKeysetFilter.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeKeysetFilter_lower(_ value: KeysetFilter) -> RustBuffer {
+    return FfiConverterTypeKeysetFilter.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * FFI-compatible MeltOptions
  */
 
@@ -18761,6 +19077,32 @@ fileprivate struct FfiConverterDictionaryStringString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterDictionaryStringTypeFeeAndAmounts: FfiConverterRustBuffer {
+    public static func write(_ value: [String: FeeAndAmounts], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterString.write(key, into: &buf)
+            FfiConverterTypeFeeAndAmounts.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: FeeAndAmounts] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [String: FeeAndAmounts]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterString.read(from: &buf)
+            let value = try FfiConverterTypeFeeAndAmounts.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterDictionaryTypeMintUrlOptionTypeMintInfo: FfiConverterRustBuffer {
     public static func write(_ value: [MintUrl: MintInfo?], into buf: inout [UInt8]) {
         let len = Int32(value.count)
@@ -20109,6 +20451,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_check_send_status() != 48245) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_fetch_active_keyset() != 65487) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_info() != 41951) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -20118,7 +20463,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_get_active_keyset() != 55608) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_get_keyset_count_fee() != 4726) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_get_keyset_fees_and_amounts() != 39483) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_get_keyset_fees_and_amounts_by_id() != 51885) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_get_keyset_fees_by_id() != 51180) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_get_mint_keysets() != 35744) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_get_pending_sends() != 56442) {
@@ -20139,7 +20496,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_list_transactions() != 20673) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_load_keyset_keys() != 26035) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_load_mint_info() != 12995) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_load_mint_keysets() != 32197) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_melt_bip353_quote() != 1058) {
