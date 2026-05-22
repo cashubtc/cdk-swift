@@ -55,9 +55,15 @@ if [ ! -f "$DYLIB_PATH" ]; then
 fi
 
 # Generate Swift bindings
+# NOTE: --config is required so that module_name = "CashuDevKit" is applied. In uniffi
+# 0.30 library mode the per-crate uniffi.toml is not auto-discovered, and two crates in
+# the workspace share the lib target name `cdk_ffi`, making namespace lookup ambiguous.
+# Without this, bindgen emits cdk_ffi*.{swift,h} instead of CashuDevKit*. (cwd is the
+# cdk-ffi crate dir here, so uniffi.toml is the local config.)
 log_info "Generating Swift bindings..."
 cargo run --bin uniffi-bindgen generate \
     --library "$DYLIB_PATH" \
+    --config uniffi.toml \
     --language swift \
     --out-dir "$SWIFT_OUTPUT_DIR"
 
