@@ -2879,9 +2879,35 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func prepareMeltProofs(quoteId: String, proofs: [Proof]) async throws  -> PreparedMelt
     
     /**
+     * Prepare a melt operation from an encoded token
+     *
+     * Decodes the token internally (handling keyset state for v2 keysets),
+     * extracts proofs, and prepares the melt operation.
+     *
+     * # Arguments
+     *
+     * * `quote_id` - The melt quote ID (obtained from `melt_quote`)
+     * * `encoded_token` - The encoded token string (cashuA or cashuB format)
+     *
+     * # Returns
+     *
+     * A `PreparedMelt` that can be confirmed or cancelled
+     */
+    func prepareMeltToken(quoteId: String, encodedToken: String) async throws  -> PreparedMelt
+    
+    /**
      * Prepare a send operation
      */
     func prepareSend(amount: Amount, options: SendOptions) async throws  -> PreparedSend
+    
+    /**
+     * Fetch available onchain melt quote options.
+     *
+     * Each returned quote represents one selectable confirmation target/fee reserve.
+     * Pass the chosen quote to `select_onchain_melt_quote`, then prepare and confirm
+     * the returned quote ID through the normal melt flow.
+     */
+    func quoteOnchainMeltOptions(address: String, amount: Amount, maxFeeAmount: Amount?) async throws  -> [MeltQuote]
     
     /**
      * Receive tokens
@@ -2892,6 +2918,14 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Receive proofs directly
      */
     func receiveProofs(proofs: [Proof], options: ReceiveOptions, memo: String?, token: String?) async throws  -> Amount
+    
+    /**
+     * Recover from incomplete wallet sagas after a crash
+     *
+     * Handles interrupted swap, send, receive, issue, and melt operations. Requires
+     * network access to the mint for states that need external status checks.
+     */
+    func recoverIncompleteSagas() async throws  -> RecoveryReport
     
     /**
      * Refresh access token using the stored refresh token
@@ -2917,6 +2951,11 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Revoke a pending send operation
      */
     func revokeSend(operationId: String) async throws  -> Amount
+    
+    /**
+     * Persist the selected onchain melt quote before preparing it.
+     */
+    func selectOnchainMeltQuote(quote: MeltQuote) async throws  -> MeltQuote
     
     /**
      * Set Clear Auth Token (CAT) for authentication
@@ -3894,6 +3933,38 @@ open func prepareMeltProofs(quoteId: String, proofs: [Proof])async throws  -> Pr
 }
     
     /**
+     * Prepare a melt operation from an encoded token
+     *
+     * Decodes the token internally (handling keyset state for v2 keysets),
+     * extracts proofs, and prepares the melt operation.
+     *
+     * # Arguments
+     *
+     * * `quote_id` - The melt quote ID (obtained from `melt_quote`)
+     * * `encoded_token` - The encoded token string (cashuA or cashuB format)
+     *
+     * # Returns
+     *
+     * A `PreparedMelt` that can be confirmed or cancelled
+     */
+open func prepareMeltToken(quoteId: String, encodedToken: String)async throws  -> PreparedMelt  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_prepare_melt_token(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(quoteId),FfiConverterString.lower(encodedToken)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_u64,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
+            freeFunc: ffi_cdk_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypePreparedMelt_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Prepare a send operation
      */
 open func prepareSend(amount: Amount, options: SendOptions)async throws  -> PreparedSend  {
@@ -3909,6 +3980,30 @@ open func prepareSend(amount: Amount, options: SendOptions)async throws  -> Prep
             completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
             freeFunc: ffi_cdk_ffi_rust_future_free_u64,
             liftFunc: FfiConverterTypePreparedSend_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Fetch available onchain melt quote options.
+     *
+     * Each returned quote represents one selectable confirmation target/fee reserve.
+     * Pass the chosen quote to `select_onchain_melt_quote`, then prepare and confirm
+     * the returned quote ID through the normal melt flow.
+     */
+open func quoteOnchainMeltOptions(address: String, amount: Amount, maxFeeAmount: Amount?)async throws  -> [MeltQuote]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_quote_onchain_melt_options(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(address),FfiConverterTypeAmount_lower(amount),FfiConverterOptionTypeAmount.lower(maxFeeAmount)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeMeltQuote.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -3949,6 +4044,29 @@ open func receiveProofs(proofs: [Proof], options: ReceiveOptions, memo: String?,
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeAmount_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Recover from incomplete wallet sagas after a crash
+     *
+     * Handles interrupted swap, send, receive, issue, and melt operations. Requires
+     * network access to the mint for states that need external status checks.
+     */
+open func recoverIncompleteSagas()async throws  -> RecoveryReport  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_recover_incomplete_sagas(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRecoveryReport_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -4049,6 +4167,26 @@ open func revokeSend(operationId: String)async throws  -> Amount  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeAmount_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Persist the selected onchain melt quote before preparing it.
+     */
+open func selectOnchainMeltQuote(quote: MeltQuote)async throws  -> MeltQuote  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_select_onchain_melt_quote(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeMeltQuote_lower(quote)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMeltQuote_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -11105,6 +11243,10 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
      * Nostr relay URLs (required if transport is "nostr")
      */
     public let nostrRelays: [String]?
+    /**
+     * Optional list of mint URLs the receiver trusts. If not provided, the wallet's current mints for the requested unit will be used.
+     */
+    public let mints: [String]?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -11138,7 +11280,10 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
          */httpUrl: String?, 
         /**
          * Nostr relay URLs (required if transport is "nostr")
-         */nostrRelays: [String]?) {
+         */nostrRelays: [String]?, 
+        /**
+         * Optional list of mint URLs the receiver trusts. If not provided, the wallet's current mints for the requested unit will be used.
+         */mints: [String]?) {
         self.amount = amount
         self.unit = unit
         self.description = description
@@ -11149,6 +11294,7 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
         self.transport = transport
         self.httpUrl = httpUrl
         self.nostrRelays = nostrRelays
+        self.mints = mints
     }
 
     
@@ -11174,7 +11320,8 @@ public struct FfiConverterTypeCreateRequestParams: FfiConverterRustBuffer {
                 preimage: FfiConverterOptionString.read(from: &buf), 
                 transport: FfiConverterString.read(from: &buf), 
                 httpUrl: FfiConverterOptionString.read(from: &buf), 
-                nostrRelays: FfiConverterOptionSequenceString.read(from: &buf)
+                nostrRelays: FfiConverterOptionSequenceString.read(from: &buf), 
+                mints: FfiConverterOptionSequenceString.read(from: &buf)
         )
     }
 
@@ -11189,6 +11336,7 @@ public struct FfiConverterTypeCreateRequestParams: FfiConverterRustBuffer {
         FfiConverterString.write(value.transport, into: &buf)
         FfiConverterOptionString.write(value.httpUrl, into: &buf)
         FfiConverterOptionSequenceString.write(value.nostrRelays, into: &buf)
+        FfiConverterOptionSequenceString.write(value.mints, into: &buf)
     }
 }
 
@@ -11976,9 +12124,17 @@ public struct MeltQuote: Equatable, Hashable, Codable {
      */
     public let expiry: UInt64
     /**
-     * Payment preimage
+     * Payment proof (e.g. Lightning preimage or onchain outpoint)
      */
-    public let paymentPreimage: String?
+    public let paymentProof: String?
+    /**
+     * Estimated confirmation target in blocks for onchain quotes
+     */
+    public let estimatedBlocks: UInt32?
+    /**
+     * Selected fee option index for onchain quotes
+     */
+    public let feeIndex: UInt32?
     /**
      * Payment method
      */
@@ -12020,8 +12176,14 @@ public struct MeltQuote: Equatable, Hashable, Codable {
          * Expiry timestamp
          */expiry: UInt64, 
         /**
-         * Payment preimage
-         */paymentPreimage: String?, 
+         * Payment proof (e.g. Lightning preimage or onchain outpoint)
+         */paymentProof: String?, 
+        /**
+         * Estimated confirmation target in blocks for onchain quotes
+         */estimatedBlocks: UInt32?, 
+        /**
+         * Selected fee option index for onchain quotes
+         */feeIndex: UInt32?, 
         /**
          * Payment method
          */paymentMethod: PaymentMethod, 
@@ -12039,7 +12201,9 @@ public struct MeltQuote: Equatable, Hashable, Codable {
         self.feeReserve = feeReserve
         self.state = state
         self.expiry = expiry
-        self.paymentPreimage = paymentPreimage
+        self.paymentProof = paymentProof
+        self.estimatedBlocks = estimatedBlocks
+        self.feeIndex = feeIndex
         self.paymentMethod = paymentMethod
         self.usedByOperation = usedByOperation
         self.version = version
@@ -12067,7 +12231,9 @@ public struct FfiConverterTypeMeltQuote: FfiConverterRustBuffer {
                 feeReserve: FfiConverterTypeAmount.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
                 expiry: FfiConverterUInt64.read(from: &buf), 
-                paymentPreimage: FfiConverterOptionString.read(from: &buf), 
+                paymentProof: FfiConverterOptionString.read(from: &buf), 
+                estimatedBlocks: FfiConverterOptionUInt32.read(from: &buf), 
+                feeIndex: FfiConverterOptionUInt32.read(from: &buf), 
                 paymentMethod: FfiConverterTypePaymentMethod.read(from: &buf), 
                 usedByOperation: FfiConverterOptionString.read(from: &buf), 
                 version: FfiConverterUInt32.read(from: &buf)
@@ -12083,7 +12249,9 @@ public struct FfiConverterTypeMeltQuote: FfiConverterRustBuffer {
         FfiConverterTypeAmount.write(value.feeReserve, into: &buf)
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
         FfiConverterUInt64.write(value.expiry, into: &buf)
-        FfiConverterOptionString.write(value.paymentPreimage, into: &buf)
+        FfiConverterOptionString.write(value.paymentProof, into: &buf)
+        FfiConverterOptionUInt32.write(value.estimatedBlocks, into: &buf)
+        FfiConverterOptionUInt32.write(value.feeIndex, into: &buf)
         FfiConverterTypePaymentMethod.write(value.paymentMethod, into: &buf)
         FfiConverterOptionString.write(value.usedByOperation, into: &buf)
         FfiConverterUInt32.write(value.version, into: &buf)
@@ -12131,9 +12299,9 @@ public struct MeltQuoteBolt11Response: Equatable, Hashable, Codable {
      */
     public let expiry: UInt64
     /**
-     * Payment preimage (optional)
+     * Payment proof (optional)
      */
-    public let paymentPreimage: String?
+    public let paymentProof: String?
     /**
      * Request string (optional)
      */
@@ -12162,8 +12330,8 @@ public struct MeltQuoteBolt11Response: Equatable, Hashable, Codable {
          * Expiry timestamp
          */expiry: UInt64, 
         /**
-         * Payment preimage (optional)
-         */paymentPreimage: String?, 
+         * Payment proof (optional)
+         */paymentProof: String?, 
         /**
          * Request string (optional)
          */request: String?, 
@@ -12175,7 +12343,7 @@ public struct MeltQuoteBolt11Response: Equatable, Hashable, Codable {
         self.feeReserve = feeReserve
         self.state = state
         self.expiry = expiry
-        self.paymentPreimage = paymentPreimage
+        self.paymentProof = paymentProof
         self.request = request
         self.unit = unit
     }
@@ -12199,7 +12367,7 @@ public struct FfiConverterTypeMeltQuoteBolt11Response: FfiConverterRustBuffer {
                 feeReserve: FfiConverterTypeAmount.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
                 expiry: FfiConverterUInt64.read(from: &buf), 
-                paymentPreimage: FfiConverterOptionString.read(from: &buf), 
+                paymentProof: FfiConverterOptionString.read(from: &buf), 
                 request: FfiConverterOptionString.read(from: &buf), 
                 unit: FfiConverterOptionTypeCurrencyUnit.read(from: &buf)
         )
@@ -12211,7 +12379,7 @@ public struct FfiConverterTypeMeltQuoteBolt11Response: FfiConverterRustBuffer {
         FfiConverterTypeAmount.write(value.feeReserve, into: &buf)
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
         FfiConverterUInt64.write(value.expiry, into: &buf)
-        FfiConverterOptionString.write(value.paymentPreimage, into: &buf)
+        FfiConverterOptionString.write(value.paymentProof, into: &buf)
         FfiConverterOptionString.write(value.request, into: &buf)
         FfiConverterOptionTypeCurrencyUnit.write(value.unit, into: &buf)
     }
@@ -12251,7 +12419,7 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
     /**
      * Fee reserve
      */
-    public let feeReserve: Amount
+    public let feeReserve: Amount?
     /**
      * State of the quote
      */
@@ -12261,9 +12429,9 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
      */
     public let expiry: UInt64
     /**
-     * Payment preimage (optional)
+     * Payment proof (optional)
      */
-    public let paymentPreimage: String?
+    public let paymentProof: String?
     /**
      * Request string (optional)
      */
@@ -12291,7 +12459,7 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
          */amount: Amount, 
         /**
          * Fee reserve
-         */feeReserve: Amount, 
+         */feeReserve: Amount?, 
         /**
          * State of the quote
          */state: QuoteState, 
@@ -12299,8 +12467,8 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
          * Expiry timestamp
          */expiry: UInt64, 
         /**
-         * Payment preimage (optional)
-         */paymentPreimage: String?, 
+         * Payment proof (optional)
+         */paymentProof: String?, 
         /**
          * Request string (optional)
          */request: String?, 
@@ -12318,7 +12486,7 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
         self.feeReserve = feeReserve
         self.state = state
         self.expiry = expiry
-        self.paymentPreimage = paymentPreimage
+        self.paymentProof = paymentProof
         self.request = request
         self.unit = unit
         self.extra = extra
@@ -12340,10 +12508,10 @@ public struct FfiConverterTypeMeltQuoteCustomResponse: FfiConverterRustBuffer {
             try MeltQuoteCustomResponse(
                 quote: FfiConverterString.read(from: &buf), 
                 amount: FfiConverterTypeAmount.read(from: &buf), 
-                feeReserve: FfiConverterTypeAmount.read(from: &buf), 
+                feeReserve: FfiConverterOptionTypeAmount.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
                 expiry: FfiConverterUInt64.read(from: &buf), 
-                paymentPreimage: FfiConverterOptionString.read(from: &buf), 
+                paymentProof: FfiConverterOptionString.read(from: &buf), 
                 request: FfiConverterOptionString.read(from: &buf), 
                 unit: FfiConverterOptionTypeCurrencyUnit.read(from: &buf), 
                 extra: FfiConverterOptionString.read(from: &buf)
@@ -12353,10 +12521,10 @@ public struct FfiConverterTypeMeltQuoteCustomResponse: FfiConverterRustBuffer {
     public static func write(_ value: MeltQuoteCustomResponse, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
         FfiConverterTypeAmount.write(value.amount, into: &buf)
-        FfiConverterTypeAmount.write(value.feeReserve, into: &buf)
+        FfiConverterOptionTypeAmount.write(value.feeReserve, into: &buf)
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
         FfiConverterUInt64.write(value.expiry, into: &buf)
-        FfiConverterOptionString.write(value.paymentPreimage, into: &buf)
+        FfiConverterOptionString.write(value.paymentProof, into: &buf)
         FfiConverterOptionString.write(value.request, into: &buf)
         FfiConverterOptionTypeCurrencyUnit.write(value.unit, into: &buf)
         FfiConverterOptionString.write(value.extra, into: &buf)
@@ -12376,6 +12544,230 @@ public func FfiConverterTypeMeltQuoteCustomResponse_lift(_ buf: RustBuffer) thro
 #endif
 public func FfiConverterTypeMeltQuoteCustomResponse_lower(_ value: MeltQuoteCustomResponse) -> RustBuffer {
     return FfiConverterTypeMeltQuoteCustomResponse.lower(value)
+}
+
+
+/**
+ * Fee option for an onchain melt quote.
+ */
+public struct MeltQuoteOnchainFeeOption: Equatable, Hashable, Codable {
+    /**
+     * Server-assigned identifier the wallet echoes back to select this option
+     */
+    public let feeIndex: UInt32
+    /**
+     * Maximum onchain transaction fee the mint may charge
+     */
+    public let feeReserve: Amount
+    /**
+     * Estimated confirmation target in blocks
+     */
+    public let estimatedBlocks: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Server-assigned identifier the wallet echoes back to select this option
+         */feeIndex: UInt32, 
+        /**
+         * Maximum onchain transaction fee the mint may charge
+         */feeReserve: Amount, 
+        /**
+         * Estimated confirmation target in blocks
+         */estimatedBlocks: UInt32) {
+        self.feeIndex = feeIndex
+        self.feeReserve = feeReserve
+        self.estimatedBlocks = estimatedBlocks
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension MeltQuoteOnchainFeeOption: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMeltQuoteOnchainFeeOption: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MeltQuoteOnchainFeeOption {
+        return
+            try MeltQuoteOnchainFeeOption(
+                feeIndex: FfiConverterUInt32.read(from: &buf), 
+                feeReserve: FfiConverterTypeAmount.read(from: &buf), 
+                estimatedBlocks: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MeltQuoteOnchainFeeOption, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.feeIndex, into: &buf)
+        FfiConverterTypeAmount.write(value.feeReserve, into: &buf)
+        FfiConverterUInt32.write(value.estimatedBlocks, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMeltQuoteOnchainFeeOption_lift(_ buf: RustBuffer) throws -> MeltQuoteOnchainFeeOption {
+    return try FfiConverterTypeMeltQuoteOnchainFeeOption.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMeltQuoteOnchainFeeOption_lower(_ value: MeltQuoteOnchainFeeOption) -> RustBuffer {
+    return FfiConverterTypeMeltQuoteOnchainFeeOption.lower(value)
+}
+
+
+/**
+ * FFI-compatible MeltQuoteOnchainResponse.
+ */
+public struct MeltQuoteOnchainResponse: Equatable, Hashable, Codable {
+    /**
+     * Quote ID
+     */
+    public let quote: String
+    /**
+     * Amount being paid to the onchain address
+     */
+    public let amount: Amount
+    /**
+     * Unit
+     */
+    public let unit: CurrencyUnit
+    /**
+     * Quote state
+     */
+    public let state: QuoteState
+    /**
+     * Expiry timestamp
+     */
+    public let expiry: UInt64
+    /**
+     * Bitcoin address to pay
+     */
+    public let request: String
+    /**
+     * Available onchain fee options
+     */
+    public let feeOptions: [MeltQuoteOnchainFeeOption]
+    /**
+     * Selected fee option index, once execution has started
+     */
+    public let selectedFeeIndex: UInt32?
+    /**
+     * Broadcast outpoint (`txid:vout`), once available
+     */
+    public let outpoint: String?
+    /**
+     * Change blind signatures as JSON, when the mint returns change
+     */
+    public let change: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Quote ID
+         */quote: String, 
+        /**
+         * Amount being paid to the onchain address
+         */amount: Amount, 
+        /**
+         * Unit
+         */unit: CurrencyUnit, 
+        /**
+         * Quote state
+         */state: QuoteState, 
+        /**
+         * Expiry timestamp
+         */expiry: UInt64, 
+        /**
+         * Bitcoin address to pay
+         */request: String, 
+        /**
+         * Available onchain fee options
+         */feeOptions: [MeltQuoteOnchainFeeOption], 
+        /**
+         * Selected fee option index, once execution has started
+         */selectedFeeIndex: UInt32?, 
+        /**
+         * Broadcast outpoint (`txid:vout`), once available
+         */outpoint: String?, 
+        /**
+         * Change blind signatures as JSON, when the mint returns change
+         */change: String?) {
+        self.quote = quote
+        self.amount = amount
+        self.unit = unit
+        self.state = state
+        self.expiry = expiry
+        self.request = request
+        self.feeOptions = feeOptions
+        self.selectedFeeIndex = selectedFeeIndex
+        self.outpoint = outpoint
+        self.change = change
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension MeltQuoteOnchainResponse: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMeltQuoteOnchainResponse: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MeltQuoteOnchainResponse {
+        return
+            try MeltQuoteOnchainResponse(
+                quote: FfiConverterString.read(from: &buf), 
+                amount: FfiConverterTypeAmount.read(from: &buf), 
+                unit: FfiConverterTypeCurrencyUnit.read(from: &buf), 
+                state: FfiConverterTypeQuoteState.read(from: &buf), 
+                expiry: FfiConverterUInt64.read(from: &buf), 
+                request: FfiConverterString.read(from: &buf), 
+                feeOptions: FfiConverterSequenceTypeMeltQuoteOnchainFeeOption.read(from: &buf), 
+                selectedFeeIndex: FfiConverterOptionUInt32.read(from: &buf), 
+                outpoint: FfiConverterOptionString.read(from: &buf), 
+                change: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MeltQuoteOnchainResponse, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.quote, into: &buf)
+        FfiConverterTypeAmount.write(value.amount, into: &buf)
+        FfiConverterTypeCurrencyUnit.write(value.unit, into: &buf)
+        FfiConverterTypeQuoteState.write(value.state, into: &buf)
+        FfiConverterUInt64.write(value.expiry, into: &buf)
+        FfiConverterString.write(value.request, into: &buf)
+        FfiConverterSequenceTypeMeltQuoteOnchainFeeOption.write(value.feeOptions, into: &buf)
+        FfiConverterOptionUInt32.write(value.selectedFeeIndex, into: &buf)
+        FfiConverterOptionString.write(value.outpoint, into: &buf)
+        FfiConverterOptionString.write(value.change, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMeltQuoteOnchainResponse_lift(_ buf: RustBuffer) throws -> MeltQuoteOnchainResponse {
+    return try FfiConverterTypeMeltQuoteOnchainResponse.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMeltQuoteOnchainResponse_lower(_ value: MeltQuoteOnchainResponse) -> RustBuffer {
+    return FfiConverterTypeMeltQuoteOnchainResponse.lower(value)
 }
 
 
@@ -12695,7 +13087,10 @@ public struct MintQuote: Equatable, Hashable, Codable {
      */
     public let id: String
     /**
-     * Quote amount
+     * Requested or fixed quote amount, when defined by the payment method.
+     *
+     * Variable-amount methods such as onchain leave this unset and track
+     * funds through `amount_paid` and `amount_issued`.
      */
     public let amount: Amount?
     /**
@@ -12727,6 +13122,10 @@ public struct MintQuote: Equatable, Hashable, Codable {
      */
     public let amountPaid: Amount
     /**
+     * Estimated confirmation target in blocks for onchain quotes
+     */
+    public let estimatedBlocks: UInt32?
+    /**
      * Payment method
      */
     public let paymentMethod: PaymentMethod
@@ -12750,7 +13149,10 @@ public struct MintQuote: Equatable, Hashable, Codable {
          * Quote ID
          */id: String, 
         /**
-         * Quote amount
+         * Requested or fixed quote amount, when defined by the payment method.
+         *
+         * Variable-amount methods such as onchain leave this unset and track
+         * funds through `amount_paid` and `amount_issued`.
          */amount: Amount?, 
         /**
          * Currency unit
@@ -12774,6 +13176,9 @@ public struct MintQuote: Equatable, Hashable, Codable {
          * Amount paid
          */amountPaid: Amount, 
         /**
+         * Estimated confirmation target in blocks for onchain quotes
+         */estimatedBlocks: UInt32?, 
+        /**
          * Payment method
          */paymentMethod: PaymentMethod, 
         /**
@@ -12794,6 +13199,7 @@ public struct MintQuote: Equatable, Hashable, Codable {
         self.mintUrl = mintUrl
         self.amountIssued = amountIssued
         self.amountPaid = amountPaid
+        self.estimatedBlocks = estimatedBlocks
         self.paymentMethod = paymentMethod
         self.secretKey = secretKey
         self.usedByOperation = usedByOperation
@@ -12823,6 +13229,7 @@ public struct FfiConverterTypeMintQuote: FfiConverterRustBuffer {
                 mintUrl: FfiConverterTypeMintUrl.read(from: &buf), 
                 amountIssued: FfiConverterTypeAmount.read(from: &buf), 
                 amountPaid: FfiConverterTypeAmount.read(from: &buf), 
+                estimatedBlocks: FfiConverterOptionUInt32.read(from: &buf), 
                 paymentMethod: FfiConverterTypePaymentMethod.read(from: &buf), 
                 secretKey: FfiConverterOptionString.read(from: &buf), 
                 usedByOperation: FfiConverterOptionString.read(from: &buf), 
@@ -12840,6 +13247,7 @@ public struct FfiConverterTypeMintQuote: FfiConverterRustBuffer {
         FfiConverterTypeMintUrl.write(value.mintUrl, into: &buf)
         FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
         FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
+        FfiConverterOptionUInt32.write(value.estimatedBlocks, into: &buf)
         FfiConverterTypePaymentMethod.write(value.paymentMethod, into: &buf)
         FfiConverterOptionString.write(value.secretKey, into: &buf)
         FfiConverterOptionString.write(value.usedByOperation, into: &buf)
@@ -12996,10 +13404,6 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
      */
     public let request: String
     /**
-     * State of the quote
-     */
-    public let state: QuoteState
-    /**
      * Expiry timestamp (optional)
      */
     public let expiry: UInt64?
@@ -13007,6 +13411,14 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
      * Amount (optional)
      */
     public let amount: Amount?
+    /**
+     * Amount paid
+     */
+    public let amountPaid: Amount
+    /**
+     * Amount issued
+     */
+    public let amountIssued: Amount
     /**
      * Unit (optional)
      */
@@ -13033,14 +13445,17 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
          * Request string
          */request: String, 
         /**
-         * State of the quote
-         */state: QuoteState, 
-        /**
          * Expiry timestamp (optional)
          */expiry: UInt64?, 
         /**
          * Amount (optional)
          */amount: Amount?, 
+        /**
+         * Amount paid
+         */amountPaid: Amount, 
+        /**
+         * Amount issued
+         */amountIssued: Amount, 
         /**
          * Unit (optional)
          */unit: CurrencyUnit?, 
@@ -13055,9 +13470,10 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
          */extra: String?) {
         self.quote = quote
         self.request = request
-        self.state = state
         self.expiry = expiry
         self.amount = amount
+        self.amountPaid = amountPaid
+        self.amountIssued = amountIssued
         self.unit = unit
         self.pubkey = pubkey
         self.extra = extra
@@ -13079,9 +13495,10 @@ public struct FfiConverterTypeMintQuoteCustomResponse: FfiConverterRustBuffer {
             try MintQuoteCustomResponse(
                 quote: FfiConverterString.read(from: &buf), 
                 request: FfiConverterString.read(from: &buf), 
-                state: FfiConverterTypeQuoteState.read(from: &buf), 
                 expiry: FfiConverterOptionUInt64.read(from: &buf), 
                 amount: FfiConverterOptionTypeAmount.read(from: &buf), 
+                amountPaid: FfiConverterTypeAmount.read(from: &buf), 
+                amountIssued: FfiConverterTypeAmount.read(from: &buf), 
                 unit: FfiConverterOptionTypeCurrencyUnit.read(from: &buf), 
                 pubkey: FfiConverterOptionString.read(from: &buf), 
                 extra: FfiConverterOptionString.read(from: &buf)
@@ -13091,9 +13508,10 @@ public struct FfiConverterTypeMintQuoteCustomResponse: FfiConverterRustBuffer {
     public static func write(_ value: MintQuoteCustomResponse, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
         FfiConverterString.write(value.request, into: &buf)
-        FfiConverterTypeQuoteState.write(value.state, into: &buf)
         FfiConverterOptionUInt64.write(value.expiry, into: &buf)
         FfiConverterOptionTypeAmount.write(value.amount, into: &buf)
+        FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
+        FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
         FfiConverterOptionTypeCurrencyUnit.write(value.unit, into: &buf)
         FfiConverterOptionString.write(value.pubkey, into: &buf)
         FfiConverterOptionString.write(value.extra, into: &buf)
@@ -13113,6 +13531,123 @@ public func FfiConverterTypeMintQuoteCustomResponse_lift(_ buf: RustBuffer) thro
 #endif
 public func FfiConverterTypeMintQuoteCustomResponse_lower(_ value: MintQuoteCustomResponse) -> RustBuffer {
     return FfiConverterTypeMintQuoteCustomResponse.lower(value)
+}
+
+
+/**
+ * FFI-compatible MintQuoteOnchainResponse.
+ */
+public struct MintQuoteOnchainResponse: Equatable, Hashable, Codable {
+    /**
+     * Quote ID
+     */
+    public let quote: String
+    /**
+     * Bitcoin address to pay
+     */
+    public let request: String
+    /**
+     * Unit
+     */
+    public let unit: CurrencyUnit
+    /**
+     * Expiry timestamp
+     */
+    public let expiry: UInt64?
+    /**
+     * NUT-20 public key
+     */
+    public let pubkey: String
+    /**
+     * Total confirmed amount paid to the onchain address
+     */
+    public let amountPaid: Amount
+    /**
+     * Amount already issued for this quote
+     */
+    public let amountIssued: Amount
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Quote ID
+         */quote: String, 
+        /**
+         * Bitcoin address to pay
+         */request: String, 
+        /**
+         * Unit
+         */unit: CurrencyUnit, 
+        /**
+         * Expiry timestamp
+         */expiry: UInt64?, 
+        /**
+         * NUT-20 public key
+         */pubkey: String, 
+        /**
+         * Total confirmed amount paid to the onchain address
+         */amountPaid: Amount, 
+        /**
+         * Amount already issued for this quote
+         */amountIssued: Amount) {
+        self.quote = quote
+        self.request = request
+        self.unit = unit
+        self.expiry = expiry
+        self.pubkey = pubkey
+        self.amountPaid = amountPaid
+        self.amountIssued = amountIssued
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension MintQuoteOnchainResponse: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMintQuoteOnchainResponse: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MintQuoteOnchainResponse {
+        return
+            try MintQuoteOnchainResponse(
+                quote: FfiConverterString.read(from: &buf), 
+                request: FfiConverterString.read(from: &buf), 
+                unit: FfiConverterTypeCurrencyUnit.read(from: &buf), 
+                expiry: FfiConverterOptionUInt64.read(from: &buf), 
+                pubkey: FfiConverterString.read(from: &buf), 
+                amountPaid: FfiConverterTypeAmount.read(from: &buf), 
+                amountIssued: FfiConverterTypeAmount.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MintQuoteOnchainResponse, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.quote, into: &buf)
+        FfiConverterString.write(value.request, into: &buf)
+        FfiConverterTypeCurrencyUnit.write(value.unit, into: &buf)
+        FfiConverterOptionUInt64.write(value.expiry, into: &buf)
+        FfiConverterString.write(value.pubkey, into: &buf)
+        FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
+        FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteOnchainResponse_lift(_ buf: RustBuffer) throws -> MintQuoteOnchainResponse {
+    return try FfiConverterTypeMintQuoteOnchainResponse.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteOnchainResponse_lower(_ value: MintQuoteOnchainResponse) -> RustBuffer {
+    return FfiConverterTypeMintQuoteOnchainResponse.lower(value)
 }
 
 
@@ -14699,6 +15234,93 @@ public func FfiConverterTypeReceiveOptions_lower(_ value: ReceiveOptions) -> Rus
 
 
 /**
+ * Report of wallet saga recovery operations.
+ */
+public struct RecoveryReport: Equatable, Hashable, Codable {
+    /**
+     * Operations successfully completed after crash.
+     */
+    public let recovered: UInt64
+    /**
+     * Operations rolled back and resources released.
+     */
+    public let compensated: UInt64
+    /**
+     * Operations still pending and left for a later retry.
+     */
+    public let skipped: UInt64
+    /**
+     * Operations that could not be recovered.
+     */
+    public let failed: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Operations successfully completed after crash.
+         */recovered: UInt64, 
+        /**
+         * Operations rolled back and resources released.
+         */compensated: UInt64, 
+        /**
+         * Operations still pending and left for a later retry.
+         */skipped: UInt64, 
+        /**
+         * Operations that could not be recovered.
+         */failed: UInt64) {
+        self.recovered = recovered
+        self.compensated = compensated
+        self.skipped = skipped
+        self.failed = failed
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension RecoveryReport: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRecoveryReport: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RecoveryReport {
+        return
+            try RecoveryReport(
+                recovered: FfiConverterUInt64.read(from: &buf), 
+                compensated: FfiConverterUInt64.read(from: &buf), 
+                skipped: FfiConverterUInt64.read(from: &buf), 
+                failed: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RecoveryReport, into buf: inout [UInt8]) {
+        FfiConverterUInt64.write(value.recovered, into: &buf)
+        FfiConverterUInt64.write(value.compensated, into: &buf)
+        FfiConverterUInt64.write(value.skipped, into: &buf)
+        FfiConverterUInt64.write(value.failed, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecoveryReport_lift(_ buf: RustBuffer) throws -> RecoveryReport {
+    return try FfiConverterTypeRecoveryReport.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecoveryReport_lower(_ value: RecoveryReport) -> RustBuffer {
+    return FfiConverterTypeRecoveryReport.lower(value)
+}
+
+
+/**
  * Options for restore operations
  */
 public struct RestoreOptions: Equatable, Hashable, Codable {
@@ -15048,6 +15670,14 @@ public struct SendOptions: Equatable, Hashable, Codable {
      * Metadata
      */
     public let metadata: [String: String]
+    /**
+     * Signing keys for P2PK-locked input proofs
+     */
+    public let p2pkSigningKeys: [SecretKey]
+    /**
+     * How P2PK-locked input proofs should be handled during send
+     */
+    public let p2pkLockedProofSendMode: P2pkLockedProofSendMode
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -15072,7 +15702,13 @@ public struct SendOptions: Equatable, Hashable, Codable {
          */maxProofs: UInt32?, 
         /**
          * Metadata
-         */metadata: [String: String]) {
+         */metadata: [String: String], 
+        /**
+         * Signing keys for P2PK-locked input proofs
+         */p2pkSigningKeys: [SecretKey], 
+        /**
+         * How P2PK-locked input proofs should be handled during send
+         */p2pkLockedProofSendMode: P2pkLockedProofSendMode) {
         self.memo = memo
         self.conditions = conditions
         self.amountSplitTarget = amountSplitTarget
@@ -15081,6 +15717,8 @@ public struct SendOptions: Equatable, Hashable, Codable {
         self.useP2bk = useP2bk
         self.maxProofs = maxProofs
         self.metadata = metadata
+        self.p2pkSigningKeys = p2pkSigningKeys
+        self.p2pkLockedProofSendMode = p2pkLockedProofSendMode
     }
 
     
@@ -15104,7 +15742,9 @@ public struct FfiConverterTypeSendOptions: FfiConverterRustBuffer {
                 includeFee: FfiConverterBool.read(from: &buf), 
                 useP2bk: FfiConverterBool.read(from: &buf), 
                 maxProofs: FfiConverterOptionUInt32.read(from: &buf), 
-                metadata: FfiConverterDictionaryStringString.read(from: &buf)
+                metadata: FfiConverterDictionaryStringString.read(from: &buf), 
+                p2pkSigningKeys: FfiConverterSequenceTypeSecretKey.read(from: &buf), 
+                p2pkLockedProofSendMode: FfiConverterTypeP2PKLockedProofSendMode.read(from: &buf)
         )
     }
 
@@ -15117,6 +15757,8 @@ public struct FfiConverterTypeSendOptions: FfiConverterRustBuffer {
         FfiConverterBool.write(value.useP2bk, into: &buf)
         FfiConverterOptionUInt32.write(value.maxProofs, into: &buf)
         FfiConverterDictionaryStringString.write(value.metadata, into: &buf)
+        FfiConverterSequenceTypeSecretKey.write(value.p2pkSigningKeys, into: &buf)
+        FfiConverterTypeP2PKLockedProofSendMode.write(value.p2pkLockedProofSendMode, into: &buf)
     }
 }
 
@@ -16315,6 +16957,16 @@ public enum NotificationPayload: Equatable, Hashable, Codable {
      */
     case meltQuoteUpdate(quote: MeltQuoteBolt11Response
     )
+    /**
+     * Onchain mint quote update
+     */
+    case mintQuoteOnchainUpdate(quote: MintQuoteOnchainResponse
+    )
+    /**
+     * Onchain melt quote update
+     */
+    case meltQuoteOnchainUpdate(quote: MeltQuoteOnchainResponse
+    )
 
 
 
@@ -16343,6 +16995,12 @@ public struct FfiConverterTypeNotificationPayload: FfiConverterRustBuffer {
         case 3: return .meltQuoteUpdate(quote: try FfiConverterTypeMeltQuoteBolt11Response.read(from: &buf)
         )
         
+        case 4: return .mintQuoteOnchainUpdate(quote: try FfiConverterTypeMintQuoteOnchainResponse.read(from: &buf)
+        )
+        
+        case 5: return .meltQuoteOnchainUpdate(quote: try FfiConverterTypeMeltQuoteOnchainResponse.read(from: &buf)
+        )
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -16364,6 +17022,16 @@ public struct FfiConverterTypeNotificationPayload: FfiConverterRustBuffer {
         case let .meltQuoteUpdate(quote):
             writeInt(&buf, Int32(3))
             FfiConverterTypeMeltQuoteBolt11Response.write(quote, into: &buf)
+            
+        
+        case let .mintQuoteOnchainUpdate(quote):
+            writeInt(&buf, Int32(4))
+            FfiConverterTypeMintQuoteOnchainResponse.write(quote, into: &buf)
+            
+        
+        case let .meltQuoteOnchainUpdate(quote):
+            writeInt(&buf, Int32(5))
+            FfiConverterTypeMeltQuoteOnchainResponse.write(quote, into: &buf)
             
         }
     }
@@ -16388,6 +17056,80 @@ public func FfiConverterTypeNotificationPayload_lower(_ value: NotificationPaylo
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * FFI-compatible P2PK locked proof send mode
+ */
+
+public enum P2pkLockedProofSendMode: Equatable, Hashable, Codable {
+    
+    /**
+     * Swap locked proofs into fresh proofs before creating the token
+     */
+    case swap
+    /**
+     * Sign locked proofs and include them directly in the token
+     */
+    case signAndSend
+
+
+
+}
+
+#if compiler(>=6)
+extension P2pkLockedProofSendMode: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeP2PKLockedProofSendMode: FfiConverterRustBuffer {
+    typealias SwiftType = P2pkLockedProofSendMode
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> P2pkLockedProofSendMode {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .swap
+        
+        case 2: return .signAndSend
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: P2pkLockedProofSendMode, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .swap:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .signAndSend:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeP2PKLockedProofSendMode_lift(_ buf: RustBuffer) throws -> P2pkLockedProofSendMode {
+    return try FfiConverterTypeP2PKLockedProofSendMode.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeP2PKLockedProofSendMode_lower(_ value: P2pkLockedProofSendMode) -> RustBuffer {
+    return FfiConverterTypeP2PKLockedProofSendMode.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * FFI-compatible PaymentMethod
  */
 
@@ -16401,6 +17143,10 @@ public enum PaymentMethod: Equatable, Hashable, Codable {
      * Bolt12 payment type
      */
     case bolt12
+    /**
+     * Onchain Bitcoin payment type
+     */
+    case onchain
     /**
      * Custom payment type
      */
@@ -16429,7 +17175,9 @@ public struct FfiConverterTypePaymentMethod: FfiConverterRustBuffer {
         
         case 2: return .bolt12
         
-        case 3: return .custom(method: try FfiConverterString.read(from: &buf)
+        case 3: return .onchain
+        
+        case 4: return .custom(method: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -16448,8 +17196,12 @@ public struct FfiConverterTypePaymentMethod: FfiConverterRustBuffer {
             writeInt(&buf, Int32(2))
         
         
-        case let .custom(method):
+        case .onchain:
             writeInt(&buf, Int32(3))
+        
+        
+        case let .custom(method):
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(method, into: &buf)
             
         }
@@ -17026,6 +17778,14 @@ public enum SubscriptionKind: Equatable, Hashable, Codable {
      */
     case bolt12MeltQuote
     /**
+     * Onchain Mint Quote
+     */
+    case onchainMintQuote
+    /**
+     * Onchain Melt Quote
+     */
+    case onchainMeltQuote
+    /**
      * Proof State
      */
     case proofState
@@ -17056,7 +17816,11 @@ public struct FfiConverterTypeSubscriptionKind: FfiConverterRustBuffer {
         
         case 4: return .bolt12MeltQuote
         
-        case 5: return .proofState
+        case 5: return .onchainMintQuote
+        
+        case 6: return .onchainMeltQuote
+        
+        case 7: return .proofState
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -17082,8 +17846,16 @@ public struct FfiConverterTypeSubscriptionKind: FfiConverterRustBuffer {
             writeInt(&buf, Int32(4))
         
         
-        case .proofState:
+        case .onchainMintQuote:
             writeInt(&buf, Int32(5))
+        
+        
+        case .onchainMeltQuote:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .proofState:
+            writeInt(&buf, Int32(7))
         
         }
     }
@@ -18592,6 +19364,31 @@ fileprivate struct FfiConverterSequenceTypeMeltQuote: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeMeltQuote.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeMeltQuoteOnchainFeeOption: FfiConverterRustBuffer {
+    typealias SwiftType = [MeltQuoteOnchainFeeOption]
+
+    public static func write(_ value: [MeltQuoteOnchainFeeOption], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeMeltQuoteOnchainFeeOption.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [MeltQuoteOnchainFeeOption] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [MeltQuoteOnchainFeeOption]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeMeltQuoteOnchainFeeOption.read(from: &buf))
         }
         return seq
     }
@@ -20544,13 +21341,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_prepare_melt_proofs() != 47387) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_prepare_melt_token() != 3555) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_prepare_send() != 18579) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_quote_onchain_melt_options() != 54895) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_receive() != 34397) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_receive_proofs() != 40857) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_recover_incomplete_sagas() != 24677) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_refresh_access_token() != 63251) {
@@ -20566,6 +21372,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_revoke_send() != 52137) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_select_onchain_melt_quote() != 64446) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_set_cat() != 29016) {
