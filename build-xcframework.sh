@@ -30,7 +30,13 @@ cargo build --package cdk-ffi --profile release-smaller --target aarch64-apple-i
 cargo build --package cdk-ffi --profile release-smaller --target aarch64-apple-ios-sim
 
 # Build cdk-ffi Swift bindings and put in cdk-swift Sources
-cargo run -p cdk-ffi --bin uniffi-bindgen generate --library ./target/aarch64-apple-ios/release-smaller/libcdk_ffi.dylib --language swift --out-dir ../cdk-swift/Sources/CashuDevKit --no-format
+# NOTE: --config is required. In uniffi 0.30 library mode the per-crate uniffi.toml
+# is not auto-discovered, and the workspace now has two crates whose lib target is
+# named `cdk_ffi` (crates/cdk-ffi and bindings/kotlin/rust), which makes namespace
+# lookup ambiguous. Without an explicit config, `module_name = "CashuDevKit"` is
+# dropped and bindgen emits cdk_ffiFFI.h instead of CashuDevKitFFI.h, breaking the
+# mv below. Passing the config pins the Swift module name. (cwd is the cdk root here.)
+cargo run -p cdk-ffi --bin uniffi-bindgen generate --library ./target/aarch64-apple-ios/release-smaller/libcdk_ffi.dylib --config crates/cdk-ffi/uniffi.toml --language swift --out-dir ../cdk-swift/Sources/CashuDevKit --no-format
 
 # Combine cdk-ffi static libs for universal binaries via lipo tool
 mkdir -p target/lipo-ios-sim/release-smaller
