@@ -2943,6 +2943,11 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func restore() async throws  -> Restored
     
     /**
+     * Restore wallet from seed with custom NUT-13 options
+     */
+    func restoreWithOpts(opts: Nut13Options) async throws  -> Restored
+    
+    /**
      * Revert a transaction
      */
     func revertTransaction(id: TransactionId) async throws 
@@ -4121,6 +4126,26 @@ open func restore()async throws  -> Restored  {
                 uniffi_cdk_ffi_fn_method_wallet_restore(
                     self.uniffiCloneHandle()
                     
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRestored_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Restore wallet from seed with custom NUT-13 options
+     */
+open func restoreWithOpts(opts: Nut13Options)async throws  -> Restored  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_restore_with_opts(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeNUT13Options_lower(opts)
                 )
             },
             pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
@@ -8016,1073 +8041,6 @@ public func FfiConverterTypeWalletDatabase_lift(_ handle: UInt64) throws -> Wall
 #endif
 public func FfiConverterTypeWalletDatabase_lower(_ value: WalletDatabase) -> UInt64 {
     return FfiConverterTypeWalletDatabase.lower(value)
-}
-
-
-
-
-
-
-public protocol WalletPostgresDatabaseProtocol: AnyObject, Sendable {
-    
-    func addKeys(keyset: KeySet) async throws 
-    
-    func addMeltQuote(quote: MeltQuote) async throws 
-    
-    func addMint(mintUrl: MintUrl, mintInfo: MintInfo?) async throws 
-    
-    func addMintKeysets(mintUrl: MintUrl, keysets: [KeySetInfo]) async throws 
-    
-    func addMintQuote(quote: MintQuote) async throws 
-    
-    func addP2pkKey(pubkey: PublicKey, derivationPath: String, derivationIndex: UInt32) async throws 
-    
-    func addSaga(sagaJson: String) async throws 
-    
-    func addTransaction(transaction: Transaction) async throws 
-    
-    func deleteSaga(id: String) async throws 
-    
-    func getBalance(mintUrl: MintUrl?, unit: CurrencyUnit?, state: [ProofState]?) async throws  -> UInt64
-    
-    func getIncompleteSagas() async throws  -> [String]
-    
-    func getKeys(id: Id) async throws  -> Keys?
-    
-    func getKeysetById(keysetId: Id) async throws  -> KeySetInfo?
-    
-    func getMeltQuote(quoteId: String) async throws  -> MeltQuote?
-    
-    func getMeltQuotes() async throws  -> [MeltQuote]
-    
-    func getMint(mintUrl: MintUrl) async throws  -> MintInfo?
-    
-    func getMintKeysets(mintUrl: MintUrl) async throws  -> [KeySetInfo]?
-    
-    func getMintQuote(quoteId: String) async throws  -> MintQuote?
-    
-    func getMintQuotes() async throws  -> [MintQuote]
-    
-    func getMints() async throws  -> [MintUrl: MintInfo?]
-    
-    func getP2pkKey(pubkey: PublicKey) async throws  -> P2pkSigningKey?
-    
-    func getProofs(mintUrl: MintUrl?, unit: CurrencyUnit?, state: [ProofState]?, spendingConditions: [SpendingConditions]?) async throws  -> [ProofInfo]
-    
-    func getProofsByYs(ys: [PublicKey]) async throws  -> [ProofInfo]
-    
-    func getReservedProofs(operationId: String) async throws  -> [ProofInfo]
-    
-    func getSaga(id: String) async throws  -> String?
-    
-    func getTransaction(transactionId: TransactionId) async throws  -> Transaction?
-    
-    func getUnissuedMintQuotes() async throws  -> [MintQuote]
-    
-    func incrementKeysetCounter(keysetId: Id, count: UInt32) async throws  -> UInt32
-    
-    func kvList(primaryNamespace: String, secondaryNamespace: String) async throws  -> [String]
-    
-    func kvRead(primaryNamespace: String, secondaryNamespace: String, key: String) async throws  -> Data?
-    
-    func kvRemove(primaryNamespace: String, secondaryNamespace: String, key: String) async throws 
-    
-    func kvWrite(primaryNamespace: String, secondaryNamespace: String, key: String, value: Data) async throws 
-    
-    func latestP2pk() async throws  -> P2pkSigningKey?
-    
-    func listP2pkKeys() async throws  -> [P2pkSigningKey]
-    
-    func listTransactions(mintUrl: MintUrl?, direction: TransactionDirection?, unit: CurrencyUnit?) async throws  -> [Transaction]
-    
-    func releaseMeltQuote(operationId: String) async throws 
-    
-    func releaseMintQuote(operationId: String) async throws 
-    
-    func releaseProofs(operationId: String) async throws 
-    
-    func removeKeys(id: Id) async throws 
-    
-    func removeMeltQuote(quoteId: String) async throws 
-    
-    func removeMint(mintUrl: MintUrl) async throws 
-    
-    func removeMintQuote(quoteId: String) async throws 
-    
-    func removeTransaction(transactionId: TransactionId) async throws 
-    
-    func reserveMeltQuote(quoteId: String, operationId: String) async throws 
-    
-    func reserveMintQuote(quoteId: String, operationId: String) async throws 
-    
-    func reserveProofs(ys: [PublicKey], operationId: String) async throws 
-    
-    func updateMintUrl(oldMintUrl: MintUrl, newMintUrl: MintUrl) async throws 
-    
-    func updateProofs(added: [ProofInfo], removedYs: [PublicKey]) async throws 
-    
-    func updateProofsState(ys: [PublicKey], state: ProofState) async throws 
-    
-    func updateSaga(sagaJson: String) async throws  -> Bool
-    
-}
-open class WalletPostgresDatabase: WalletPostgresDatabaseProtocol, @unchecked Sendable {
-    fileprivate let handle: UInt64
-
-    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
-#if swift(>=5.8)
-    @_documentation(visibility: private)
-#endif
-    public struct NoHandle {
-        public init() {}
-    }
-
-    // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `FfiConverter` without making this `required` and we can't
-    // make it `required` without making it `public`.
-#if swift(>=5.8)
-    @_documentation(visibility: private)
-#endif
-    required public init(unsafeFromHandle handle: UInt64) {
-        self.handle = handle
-    }
-
-    // This constructor can be used to instantiate a fake object.
-    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
-    //
-    // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
-#if swift(>=5.8)
-    @_documentation(visibility: private)
-#endif
-    public init(noHandle: NoHandle) {
-        self.handle = 0
-    }
-
-#if swift(>=5.8)
-    @_documentation(visibility: private)
-#endif
-    public func uniffiCloneHandle() -> UInt64 {
-        return try! rustCall { uniffi_cdk_ffi_fn_clone_walletpostgresdatabase(self.handle, $0) }
-    }
-    /**
-     * Create a new Postgres-backed wallet database
-     * Requires cdk-ffi to be built with feature "postgres".
-     * Example URL:
-     * "host=localhost user=test password=test dbname=testdb port=5433 schema=wallet sslmode=prefer"
-     */
-public convenience init(url: String)throws  {
-    let handle =
-        try rustCallWithError(FfiConverterTypeFfiError_lift) {
-    uniffi_cdk_ffi_fn_constructor_walletpostgresdatabase_new(
-        FfiConverterString.lower(url),$0
-    )
-}
-    self.init(unsafeFromHandle: handle)
-}
-
-    deinit {
-        try! rustCall { uniffi_cdk_ffi_fn_free_walletpostgresdatabase(handle, $0) }
-    }
-
-    
-
-    
-open func addKeys(keyset: KeySet)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_keys(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeKeySet_lower(keyset)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func addMeltQuote(quote: MeltQuote)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_melt_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMeltQuote_lower(quote)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func addMint(mintUrl: MintUrl, mintInfo: MintInfo?)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_mint(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterOptionTypeMintInfo.lower(mintInfo)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func addMintKeysets(mintUrl: MintUrl, keysets: [KeySetInfo])async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_mint_keysets(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterSequenceTypeKeySetInfo.lower(keysets)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func addMintQuote(quote: MintQuote)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_mint_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMintQuote_lower(quote)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func addP2pkKey(pubkey: PublicKey, derivationPath: String, derivationIndex: UInt32)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_p2pk_key(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypePublicKey_lower(pubkey),FfiConverterString.lower(derivationPath),FfiConverterUInt32.lower(derivationIndex)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func addSaga(sagaJson: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_saga(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(sagaJson)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func addTransaction(transaction: Transaction)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_add_transaction(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeTransaction_lower(transaction)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func deleteSaga(id: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_delete_saga(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(id)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getBalance(mintUrl: MintUrl?, unit: CurrencyUnit?, state: [ProofState]?)async throws  -> UInt64  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_balance(
-                    self.uniffiCloneHandle(),
-                    FfiConverterOptionTypeMintUrl.lower(mintUrl),FfiConverterOptionTypeCurrencyUnit.lower(unit),FfiConverterOptionSequenceTypeProofState.lower(state)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_u64,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
-            freeFunc: ffi_cdk_ffi_rust_future_free_u64,
-            liftFunc: FfiConverterUInt64.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getIncompleteSagas()async throws  -> [String]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_incomplete_sagas(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceString.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getKeys(id: Id)async throws  -> Keys?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_keys(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeId_lower(id)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeKeys.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getKeysetById(keysetId: Id)async throws  -> KeySetInfo?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_keyset_by_id(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeId_lower(keysetId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeKeySetInfo.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getMeltQuote(quoteId: String)async throws  -> MeltQuote?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_melt_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(quoteId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeMeltQuote.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getMeltQuotes()async throws  -> [MeltQuote]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_melt_quotes(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeMeltQuote.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getMint(mintUrl: MintUrl)async throws  -> MintInfo?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_mint(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMintUrl_lower(mintUrl)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeMintInfo.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getMintKeysets(mintUrl: MintUrl)async throws  -> [KeySetInfo]?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_mint_keysets(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMintUrl_lower(mintUrl)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionSequenceTypeKeySetInfo.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getMintQuote(quoteId: String)async throws  -> MintQuote?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_mint_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(quoteId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeMintQuote.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getMintQuotes()async throws  -> [MintQuote]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_mint_quotes(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeMintQuote.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getMints()async throws  -> [MintUrl: MintInfo?]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_mints(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterDictionaryTypeMintUrlOptionTypeMintInfo.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getP2pkKey(pubkey: PublicKey)async throws  -> P2pkSigningKey?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_p2pk_key(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypePublicKey_lower(pubkey)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeP2PKSigningKey.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getProofs(mintUrl: MintUrl?, unit: CurrencyUnit?, state: [ProofState]?, spendingConditions: [SpendingConditions]?)async throws  -> [ProofInfo]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_proofs(
-                    self.uniffiCloneHandle(),
-                    FfiConverterOptionTypeMintUrl.lower(mintUrl),FfiConverterOptionTypeCurrencyUnit.lower(unit),FfiConverterOptionSequenceTypeProofState.lower(state),FfiConverterOptionSequenceTypeSpendingConditions.lower(spendingConditions)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeProofInfo.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getProofsByYs(ys: [PublicKey])async throws  -> [ProofInfo]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_proofs_by_ys(
-                    self.uniffiCloneHandle(),
-                    FfiConverterSequenceTypePublicKey.lower(ys)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeProofInfo.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getReservedProofs(operationId: String)async throws  -> [ProofInfo]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_reserved_proofs(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(operationId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeProofInfo.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getSaga(id: String)async throws  -> String?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_saga(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(id)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionString.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getTransaction(transactionId: TransactionId)async throws  -> Transaction?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_transaction(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeTransactionId_lower(transactionId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeTransaction.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func getUnissuedMintQuotes()async throws  -> [MintQuote]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_get_unissued_mint_quotes(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeMintQuote.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func incrementKeysetCounter(keysetId: Id, count: UInt32)async throws  -> UInt32  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_increment_keyset_counter(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeId_lower(keysetId),FfiConverterUInt32.lower(count)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_u32,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_u32,
-            freeFunc: ffi_cdk_ffi_rust_future_free_u32,
-            liftFunc: FfiConverterUInt32.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func kvList(primaryNamespace: String, secondaryNamespace: String)async throws  -> [String]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_kv_list(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(primaryNamespace),FfiConverterString.lower(secondaryNamespace)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceString.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func kvRead(primaryNamespace: String, secondaryNamespace: String, key: String)async throws  -> Data?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_kv_read(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(primaryNamespace),FfiConverterString.lower(secondaryNamespace),FfiConverterString.lower(key)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionData.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func kvRemove(primaryNamespace: String, secondaryNamespace: String, key: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_kv_remove(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(primaryNamespace),FfiConverterString.lower(secondaryNamespace),FfiConverterString.lower(key)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func kvWrite(primaryNamespace: String, secondaryNamespace: String, key: String, value: Data)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_kv_write(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(primaryNamespace),FfiConverterString.lower(secondaryNamespace),FfiConverterString.lower(key),FfiConverterData.lower(value)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func latestP2pk()async throws  -> P2pkSigningKey?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_latest_p2pk(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeP2PKSigningKey.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func listP2pkKeys()async throws  -> [P2pkSigningKey]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_list_p2pk_keys(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeP2PKSigningKey.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func listTransactions(mintUrl: MintUrl?, direction: TransactionDirection?, unit: CurrencyUnit?)async throws  -> [Transaction]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_list_transactions(
-                    self.uniffiCloneHandle(),
-                    FfiConverterOptionTypeMintUrl.lower(mintUrl),FfiConverterOptionTypeTransactionDirection.lower(direction),FfiConverterOptionTypeCurrencyUnit.lower(unit)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeTransaction.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func releaseMeltQuote(operationId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_release_melt_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(operationId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func releaseMintQuote(operationId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_release_mint_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(operationId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func releaseProofs(operationId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_release_proofs(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(operationId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func removeKeys(id: Id)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_remove_keys(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeId_lower(id)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func removeMeltQuote(quoteId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_remove_melt_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(quoteId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func removeMint(mintUrl: MintUrl)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_remove_mint(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMintUrl_lower(mintUrl)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func removeMintQuote(quoteId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_remove_mint_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(quoteId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func removeTransaction(transactionId: TransactionId)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_remove_transaction(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeTransactionId_lower(transactionId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func reserveMeltQuote(quoteId: String, operationId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_reserve_melt_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(quoteId),FfiConverterString.lower(operationId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func reserveMintQuote(quoteId: String, operationId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_reserve_mint_quote(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(quoteId),FfiConverterString.lower(operationId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func reserveProofs(ys: [PublicKey], operationId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_reserve_proofs(
-                    self.uniffiCloneHandle(),
-                    FfiConverterSequenceTypePublicKey.lower(ys),FfiConverterString.lower(operationId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func updateMintUrl(oldMintUrl: MintUrl, newMintUrl: MintUrl)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_update_mint_url(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeMintUrl_lower(oldMintUrl),FfiConverterTypeMintUrl_lower(newMintUrl)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func updateProofs(added: [ProofInfo], removedYs: [PublicKey])async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_update_proofs(
-                    self.uniffiCloneHandle(),
-                    FfiConverterSequenceTypeProofInfo.lower(added),FfiConverterSequenceTypePublicKey.lower(removedYs)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func updateProofsState(ys: [PublicKey], state: ProofState)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_update_proofs_state(
-                    self.uniffiCloneHandle(),
-                    FfiConverterSequenceTypePublicKey.lower(ys),FfiConverterTypeProofState_lower(state)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-open func updateSaga(sagaJson: String)async throws  -> Bool  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_walletpostgresdatabase_update_saga(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(sagaJson)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_i8,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_i8,
-            freeFunc: ffi_cdk_ffi_rust_future_free_i8,
-            liftFunc: FfiConverterBool.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-
-    
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeWalletPostgresDatabase: FfiConverter {
-    typealias FfiType = UInt64
-    typealias SwiftType = WalletPostgresDatabase
-
-    public static func lift(_ handle: UInt64) throws -> WalletPostgresDatabase {
-        return WalletPostgresDatabase(unsafeFromHandle: handle)
-    }
-
-    public static func lower(_ value: WalletPostgresDatabase) -> UInt64 {
-        return value.uniffiCloneHandle()
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WalletPostgresDatabase {
-        let handle: UInt64 = try readInt(&buf)
-        return try lift(handle)
-    }
-
-    public static func write(_ value: WalletPostgresDatabase, into buf: inout [UInt8]) {
-        writeInt(&buf, lower(value))
-    }
-}
-extension WalletPostgresDatabase: WalletDatabase {}
-
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeWalletPostgresDatabase_lift(_ handle: UInt64) throws -> WalletPostgresDatabase {
-    return try FfiConverterTypeWalletPostgresDatabase.lift(handle)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeWalletPostgresDatabase_lower(_ value: WalletPostgresDatabase) -> UInt64 {
-    return FfiConverterTypeWalletPostgresDatabase.lower(value)
 }
 
 
@@ -13770,6 +12728,73 @@ public func FfiConverterTypeMintVersion_lower(_ value: MintVersion) -> RustBuffe
 
 
 /**
+ * FFI-compatible NUT-13 restore options
+ */
+public struct Nut13Options: Equatable, Hashable, Codable {
+    /**
+     * Number of blinded messages to request per batch
+     */
+    public let batchSize: UInt32
+    /**
+     * Number of consecutive empty batches that terminate the scan
+     */
+    public let maxGap: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Number of blinded messages to request per batch
+         */batchSize: UInt32, 
+        /**
+         * Number of consecutive empty batches that terminate the scan
+         */maxGap: UInt32) {
+        self.batchSize = batchSize
+        self.maxGap = maxGap
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension Nut13Options: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNUT13Options: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Nut13Options {
+        return
+            try Nut13Options(
+                batchSize: FfiConverterUInt32.read(from: &buf), 
+                maxGap: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Nut13Options, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.batchSize, into: &buf)
+        FfiConverterUInt32.write(value.maxGap, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNUT13Options_lift(_ buf: RustBuffer) throws -> Nut13Options {
+    return try FfiConverterTypeNUT13Options.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNUT13Options_lower(_ value: Nut13Options) -> RustBuffer {
+    return FfiConverterTypeNUT13Options.lower(value)
+}
+
+
+/**
  * A quote from the NpubCash service
  */
 public struct NpubCashQuote: Equatable, Hashable, Codable {
@@ -18035,8 +17060,6 @@ public enum WalletDbBackend: Equatable, Hashable, Codable {
     
     case sqlite(path: String
     )
-    case postgres(url: String
-    )
 
 
 
@@ -18059,9 +17082,6 @@ public struct FfiConverterTypeWalletDbBackend: FfiConverterRustBuffer {
         case 1: return .sqlite(path: try FfiConverterString.read(from: &buf)
         )
         
-        case 2: return .postgres(url: try FfiConverterString.read(from: &buf)
-        )
-        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -18073,11 +17093,6 @@ public struct FfiConverterTypeWalletDbBackend: FfiConverterRustBuffer {
         case let .sqlite(path):
             writeInt(&buf, Int32(1))
             FfiConverterString.write(path, into: &buf)
-            
-        
-        case let .postgres(url):
-            writeInt(&buf, Int32(2))
-            FfiConverterString.write(url, into: &buf)
             
         }
     }
@@ -18114,8 +17129,6 @@ public enum WalletStore {
     
     case sqlite(path: String
     )
-    case postgres(url: String
-    )
     case custom(db: WalletDatabase
     )
 
@@ -18140,10 +17153,7 @@ public struct FfiConverterTypeWalletStore: FfiConverterRustBuffer {
         case 1: return .sqlite(path: try FfiConverterString.read(from: &buf)
         )
         
-        case 2: return .postgres(url: try FfiConverterString.read(from: &buf)
-        )
-        
-        case 3: return .custom(db: try FfiConverterTypeWalletDatabase.read(from: &buf)
+        case 2: return .custom(db: try FfiConverterTypeWalletDatabase.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -18159,13 +17169,8 @@ public struct FfiConverterTypeWalletStore: FfiConverterRustBuffer {
             FfiConverterString.write(path, into: &buf)
             
         
-        case let .postgres(url):
-            writeInt(&buf, Int32(2))
-            FfiConverterString.write(url, into: &buf)
-            
-        
         case let .custom(db):
-            writeInt(&buf, Int32(3))
+            writeInt(&buf, Int32(2))
             FfiConverterTypeWalletDatabase.write(db, into: &buf)
             
         }
@@ -20721,16 +19726,6 @@ public func parseBip321PaymentInstruction(instruction: String, network: BitcoinN
         )
 }
 /**
- * Create a PostgreSQL-backed wallet store.
- */
-public func postgresWalletStore(url: String) -> WalletStore  {
-    return try!  FfiConverterTypeWalletStore_lift(try! rustCall() {
-    uniffi_cdk_ffi_fn_func_postgres_wallet_store(
-        FfiConverterString.lower(url),$0
-    )
-})
-}
-/**
  * Check if proof has DLEQ proof
  */
 public func proofHasDleq(proof: Proof) -> Bool  {
@@ -21024,9 +20019,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_parse_bip321_payment_instruction() != 49418) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_func_postgres_wallet_store() != 50185) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_proof_has_dleq() != 56072) {
@@ -21368,6 +20360,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_restore() != 15985) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_restore_with_opts() != 61743) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_revert_transaction() != 31115) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21558,156 +20553,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletdatabase_release_mint_quote() != 5426) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_keys() != 56387) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_melt_quote() != 14392) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_mint() != 29694) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_mint_keysets() != 63125) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_mint_quote() != 18330) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_p2pk_key() != 15177) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_saga() != 62408) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_add_transaction() != 60425) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_delete_saga() != 52539) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_balance() != 26475) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_incomplete_sagas() != 55228) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_keys() != 1364) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_keyset_by_id() != 47211) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_melt_quote() != 15686) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_melt_quotes() != 61301) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_mint() != 1440) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_mint_keysets() != 52552) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_mint_quote() != 62393) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_mint_quotes() != 37612) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_mints() != 51201) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_p2pk_key() != 47953) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_proofs() != 17876) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_proofs_by_ys() != 18842) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_reserved_proofs() != 35811) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_saga() != 30028) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_transaction() != 16334) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_get_unissued_mint_quotes() != 431) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_increment_keyset_counter() != 11359) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_kv_list() != 61533) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_kv_read() != 9724) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_kv_remove() != 55077) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_kv_write() != 45615) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_latest_p2pk() != 61527) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_list_p2pk_keys() != 36644) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_list_transactions() != 57613) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_release_melt_quote() != 33492) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_release_mint_quote() != 54182) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_release_proofs() != 18557) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_remove_keys() != 3270) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_remove_melt_quote() != 13050) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_remove_mint() != 52702) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_remove_mint_quote() != 40583) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_remove_transaction() != 19625) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_reserve_melt_quote() != 25305) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_reserve_mint_quote() != 51050) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_reserve_proofs() != 39792) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_update_mint_url() != 44171) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_update_proofs() != 54294) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_update_proofs_state() != 58913) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_walletpostgresdatabase_update_saga() != 21044) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_create_wallet() != 32021) {
@@ -21903,9 +20748,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_wallet_new() != 18752) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_constructor_walletpostgresdatabase_new() != 43914) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new() != 16691) {

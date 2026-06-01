@@ -1,35 +1,22 @@
-// swift-tools-version:5.5
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
     name: "cdk-swift",
-    platforms: [
-        .macOS(.v12),
-        .iOS(.v15)
-    ],
+    platforms: [.iOS(.v14), .macOS(.v13)],
     products: [
-        .library(
-            name: "CashuDevKit",
-            targets: ["CashuDevKit"]
-        )
+        .library(name: "Cdk", targets: ["Cdk"]),
     ],
-    dependencies: [],
     targets: [
         .binaryTarget(
-            name: "cdkFFI",
-            url: "https://github.com/cashubtc/cdk-swift/releases/download/v0.17.0-rc.0/cdkFFI.xcframework.zip",
-            checksum: "0b320f5ddfd7007a3a584ad1f6ef1822d18e89761d0c9590950b1146f344f469"
+            name: "CashuDevKitFFI",
+            url: "https://github.com/cashubtc/cdk-swift/releases/download/v0.17.0-rc.1/CashuDevKitFFI.xcframework.zip",
+            checksum: "c493ec6c4ce09b0cf860b01eca7003a0fa4a8cbe45c90bfffd96408d611a3041"
         ),
         .target(
-            name: "CashuDevKit",
-            dependencies: ["cdkFFI"],
-            linkerSettings: [
-                .linkedLibrary("resolv")
-            ]
+            name: "Cdk",
+            dependencies: ["CashuDevKitFFI"],
+            path: "Sources/Cdk"
         ),
-        .testTarget(
-            name: "CashuDevKitTests",
-            dependencies: ["CashuDevKit"]
-        )
     ]
 )

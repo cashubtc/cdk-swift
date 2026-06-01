@@ -1,273 +1,121 @@
-# CDK Swift
+# CDK – Cashu Development Kit for Swift
 
-Swift language bindings for the [Cashu Development Kit (CDK)](https://github.com/cashubtc/cdk).
-
-## Overview
-
-`cdk-swift` provides Swift/iOS bindings for CDK, enabling developers to integrate Cashu ecash functionality into their iOS and macOS applications.
+Swift bindings for [CDK](https://github.com/cashubtc/cdk), a Cashu protocol implementation.
 
 ## Installation
 
-### Swift Package Manager (Recommended)
+### Swift Package Manager
 
-Add the following to your `Package.swift`:
+Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/cashubtc/cdk-swift.git", from: "0.14.2-rc.3")
+    .package(url: "https://github.com/cashubtc/cdk-swift", from: "0.16.0"),
 ]
 ```
 
-Then add it to your target dependencies:
+Then add `"Cdk"` as a dependency of your target:
 
 ```swift
-targets: [
-    .target(
-        name: "YourApp",
-        dependencies: [
-            .product(name: "CashuDevKit", package: "cdk-swift")
-        ]
-    )
-]
+.target(name: "MyApp", dependencies: [
+    .product(name: "Cdk", package: "cdk-swift"),
+]),
 ```
 
-### Xcode Integration
+### Xcode
 
-1. Open your Xcode project
-2. Go to **File → Add Package Dependencies**
-3. Enter the repository URL: `https://github.com/cashubtc/cdk-swift.git`
-4. Select the version you want to use
-5. Add `CashuDevKit` to your target
+1. Open your project in Xcode
+2. Go to **File > Add Package Dependencies...**
+3. Enter `https://github.com/cashubtc/cdk-swift`
+4. Select the version rule (e.g. "Up to Next Major Version" from `0.16.0`)
+5. Click **Add Package**
+6. Select the `Cdk` library and add it to your target
 
-### Local Development Setup
+## Requirements
 
-For contributors or those who want to build from source:
+- iOS 14+ / macOS 13+
+- Swift 5.9+
 
-1. **Clone and build the package locally**:
-   ```bash
-   git clone https://github.com/cashubtc/cdk-swift.git
-   cd cdk-swift
-   just build
-   ```
-
-2. **Add as a local package dependency** in your `Package.swift`:
-   ```swift
-   dependencies: [
-       .package(path: "/path/to/cdk-swift")
-   ]
-   ```
-
-3. **Or use Xcode's local package integration**:
-   - Open your Xcode project
-   - Go to **File → Add Package Dependencies**
-   - Click **Add Local...** and select the `cdk-swift` directory
-   - Add `CashuDevKit` to your target
-
-## Supported Platforms
-
-- **macOS**: 12.0+ (Intel and Apple Silicon)
-- **iOS**: 15.0+ (Device and Simulator)
-- **Swift**: 5.5+
-
-## Basic Usage
-
-### Import the Library
+## Quick Start
 
 ```swift
-import CashuDevKit
-```
+import Cdk
 
-### Generate a Mnemonic
-
-```swift
-let mnemonic = try generateMnemonic()
-print("Generated mnemonic: \(mnemonic)")
-```
-
-### Create a Wallet
-
-```swift
-// Configure wallet  
-let config = WalletConfig(targetProofCount: nil)
-
-// Create database
-let db = try await WalletSqliteDatabase(workDir: "/path/to/wallet/data")
-
-// Create wallet with generated mnemonic
+// 1. Create a wallet
 let wallet = try Wallet(
-    mintUrl: "https://mint.example.com/",
-    unit: CurrencyUnit.sat,
-    mnemonic: mnemonic,
-    db: db,
-    config: config
+    mintUrl: "https://mint.example.com",
+    unit: .sat,
+    mnemonic: try generateMnemonic(),
+    store: .sqlite(path: "wallet.sqlite"),
+    config: WalletConfig(targetProofCount: nil)
 )
-```
 
-### Get Mint Information
-
-```swift
-let mintInfo = try await wallet.getMintInfo()
-if let info = mintInfo {
-    print("Mint name: \(info.name ?? "Unknown")")
-    print("Supported units: \(info.nuts)")
-}
-```
-
-### Mint Tokens
-
-```swift
-// Create a mint quote
-let amount = Amount(value: 1000) // 1000 sats
+// 2. Request a mint quote
 let quote = try await wallet.mintQuote(
-    amount: amount, 
-    description: "My payment"
+    paymentMethod: .bolt11,
+    amount: Amount(value: 1000),
+    description: nil,
+    extra: nil
 )
+print("Pay this invoice: \(quote.request)")
 
-// Mint tokens after paying the quote
+// 3. After paying the invoice, mint ecash
 let proofs = try await wallet.mint(
     quoteId: quote.id,
-    amountSplitTarget: SplitTarget.none,
+    amountSplitTarget: .none,
     spendingConditions: nil
 )
 
-print("Minted \(proofs.count) proofs")
+// 4. Check balance
+let balance = try await wallet.totalBalance()
+print("Balance: \(balance.value) sats")
 ```
 
-### Send Tokens
+## Pre-built binaries
 
-```swift
-// Configure send options
-let sendOptions = SendOptions(
-    memo: SendMemo(memo: "Payment for coffee", includeMemo: true),
-    conditions: nil,
-    amountSplitTarget: SplitTarget.none,
-    sendKind: SendKind.onlineExact,
-    includeFee: true,
-    maxProofs: nil,
-    metadata: [:]
-)
+The Swift package uses a pre-built `CashuDevKitFFI.xcframework` downloaded automatically via SPM from [GitHub releases](https://github.com/cashubtc/cdk-swift/releases).
 
-// Prepare the send
-let preparedSend = try await wallet.prepareSend(
-    amount: Amount(value: 500),
-    options: sendOptions
-)
+Supported platforms:
 
-// Get the token to share
-let token = try await preparedSend.confirm(memo: "Coffee payment")
-print("Token to send: \(token)")
-```
+| Platform | Architecture |
+|----------|-------------|
+| iOS | arm64 |
+| iOS Simulator | arm64, x86_64 |
+| macOS | arm64, x86_64 |
 
-### Receive Tokens
+## Testing
 
-```swift
-// Configure receive options
-let receiveOptions = ReceiveOptions(
-    amountSplitTarget: SplitTarget.none,
-    p2pkSigningKeys: [],
-    preimages: [],
-    metadata: [:]
-)
-
-// Receive the token
-let receivedAmount = try await wallet.receive(
-    token: token,
-    options: receiveOptions
-)
-
-print("Received: \(receivedAmount.value) sats")
-```
-
-### Manage Transactions
-
-```swift
-// List all transactions
-let allTransactions = try await wallet.listTransactions(direction: nil)
-
-// List only incoming transactions (mint, receive)
-let incomingTransactions = try await wallet.listTransactions(direction: .incoming)
-
-// List only outgoing transactions (send, melt)
-let outgoingTransactions = try await wallet.listTransactions(direction: .outgoing)
-
-// Get a specific transaction by ID
-let transactionId = TransactionId(hex: "your_transaction_id_here")
-let transaction = try await wallet.getTransaction(id: transactionId)
-
-// Revert a transaction if needed
-try await wallet.revertTransaction(id: transactionId)
-```
-
-### Melt Tokens (Lightning Payments)
-
-```swift
-let invoice = "lnbc1000n1..." // Lightning invoice
-let meltQuote = try await wallet.meltQuote(
-    request: invoice,
-    options: nil
-)
-
-// Pay the Lightning invoice
-let melted = try await wallet.melt(quoteId: meltQuote.id)
-print("Payment sent, preimage: \(melted.preimage ?? "None")")
-```
-
-### Error Handling
-
-```swift
-do {
-    let wallet = try Wallet(
-        mintUrl: "https://mint.example.com/",
-        unit: CurrencyUnit.sat,
-        mnemonic: mnemonic,
-        db: db,
-        config: config
-    )
-} catch let error as FfiError {
-    switch error {
-    case .generic(let message):
-        print("CDK Error: \(message)")
-    case .insufficientFunds(let message):
-        print("Insufficient funds: \(message)")
-    case .network(let message):
-        print("Network error: \(message)")
-    }
-} catch {
-    print("Unexpected error: \(error)")
-}
-```
-
-## Contributing
-
-We welcome contributions! If you're interested in contributing to the development of CDK Swift:
-
-1. **Fork and clone** the repository
-2. **Set up your development environment** (see Development section below)
-3. **Make your changes** and ensure tests pass
-4. **Submit a pull request**
-
-### Development Setup (For Contributors)
-
-Prerequisites:
-- [Rust](https://rustup.rs/) with cargo
-- Xcode and Xcode Command Line Tools
-- [Just](https://github.com/casey/just) task runner (optional but recommended)
-
-Setup:
 ```bash
-# Clone the CDK repository (required for development)
-git clone https://github.com/cashubtc/cdk.git
-
-# Clone this repository
-git clone https://github.com/cashubtc/cdk-swift.git
-cd cdk-swift
-
-# Generate Swift bindings and build
-just generate
-just build
-just test
+just test-swift
 ```
+
+## CI/CD — Publishing Workflow
+
+The `swift-publish.yml` workflow (in the CDK monorepo) builds the XCFramework,
+generates Swift sources, syncs everything to `cdk-swift`, and creates a tagged
+release. The following secrets and variables must be configured in the **CDK
+monorepo** repository settings (Settings > Secrets and variables > Actions).
+
+### Secrets
+
+| Name | Purpose |
+|---|---|
+| `FFI_DEPLOY_KEY` | Personal access token (PAT) with `repo` scope on the FFI target repos (`cdk-dart`, `cdk-kotlin`, `cdk-swift`). Used to clone, push, and create releases. Shared across all FFI publish workflows. |
+
+#### How to create the PAT
+
+1. Go to **GitHub > Settings > Developer settings > Personal access tokens > Fine-grained tokens**.
+2. Create a token scoped to the `cdk-dart`, `cdk-kotlin`, and `cdk-swift` repositories with **Contents** (read/write) and **Metadata** (read) permissions.
+3. Add it as a repository secret named `FFI_DEPLOY_KEY` in the monorepo.
+
+### Variables
+
+| Name | Purpose | Example |
+|---|---|---|
+| `CDK_SWIFT_REPO` | Owner/repo of the target Swift package repository. | `cashubtc/cdk-swift` |
+
+Set this under **Settings > Secrets and variables > Actions > Variables**.
 
 ## License
 
-This project is licensed under the same license as the CDK project.
+[MIT](https://github.com/cashubtc/cdk/blob/main/LICENSE)
