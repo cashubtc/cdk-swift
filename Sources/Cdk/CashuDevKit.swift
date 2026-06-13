@@ -10837,19 +10837,11 @@ public func FfiConverterTypeKeySetInfo_lower(_ value: KeySetInfo) -> RustBuffer 
 
 
 /**
- * FFI-compatible Keys (simplified - contains only essential info)
+ * FFI-compatible Keys
  */
 public struct Keys: Equatable, Hashable, Codable {
     /**
-     * Keyset ID
-     */
-    public let id: String
-    /**
-     * Currency unit
-     */
-    public let unit: CurrencyUnit
-    /**
-     * Map of amount to public key hex (simplified from BTreeMap)
+     * Map of amount to public key hex
      */
     public let keys: [UInt64: String]
 
@@ -10857,16 +10849,8 @@ public struct Keys: Equatable, Hashable, Codable {
     // declare one manually.
     public init(
         /**
-         * Keyset ID
-         */id: String, 
-        /**
-         * Currency unit
-         */unit: CurrencyUnit, 
-        /**
-         * Map of amount to public key hex (simplified from BTreeMap)
+         * Map of amount to public key hex
          */keys: [UInt64: String]) {
-        self.id = id
-        self.unit = unit
         self.keys = keys
     }
 
@@ -10884,15 +10868,11 @@ public struct FfiConverterTypeKeys: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Keys {
         return
             try Keys(
-                id: FfiConverterString.read(from: &buf), 
-                unit: FfiConverterTypeCurrencyUnit.read(from: &buf), 
                 keys: FfiConverterDictionaryUInt64String.read(from: &buf)
         )
     }
 
     public static func write(_ value: Keys, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.id, into: &buf)
-        FfiConverterTypeCurrencyUnit.write(value.unit, into: &buf)
         FfiConverterDictionaryUInt64String.write(value.keys, into: &buf)
     }
 }
@@ -19629,11 +19609,11 @@ public func mnemonicToEntropy(mnemonic: String)throws  -> Data  {
  * Derive Nostr keys from a wallet seed
  *
  * This function derives the same Nostr keys that a wallet would use for NpubCash
- * authentication. It takes the first 32 bytes of the seed as the secret key.
+ * authentication, using the NIP-06 path `m/44'/1237'/0'/0/0`.
  *
  * # Arguments
  *
- * * `seed` - The wallet seed bytes (must be at least 32 bytes)
+ * * `seed` - The wallet seed bytes (must be at least 64 bytes)
  *
  * # Returns
  *
@@ -20009,7 +19989,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_func_mnemonic_to_entropy() != 58572) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_func_npubcash_derive_secret_key_from_seed() != 22494) {
+    if (uniffi_cdk_ffi_checksum_func_npubcash_derive_secret_key_from_seed() != 6473) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_npubcash_get_pubkey() != 28438) {
