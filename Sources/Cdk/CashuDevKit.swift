@@ -8064,6 +8064,11 @@ public protocol WalletRepositoryProtocol: AnyObject, Sendable {
     func getBalances() async throws  -> [WalletKey: Amount]
     
     /**
+     * Get token data, including the expected redemption fee, without redeeming it.
+     */
+    func getTokenData(token: Token) async throws  -> TokenData
+    
+    /**
      * Get a specific wallet from WalletRepository by mint URL
      *
      * Returns an error if no wallet exists for the given mint URL.
@@ -8228,6 +8233,26 @@ open func getBalances()async throws  -> [WalletKey: Amount]  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterDictionaryTypeWalletKeyTypeAmount.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get token data, including the expected redemption fee, without redeeming it.
+     */
+open func getTokenData(token: Token)async throws  -> TokenData  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_walletrepository_get_token_data(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeToken_lower(token)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeTokenData_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -20539,6 +20564,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_get_balances() != 25632) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_walletrepository_get_token_data() != 37831) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_get_wallet() != 57352) {
