@@ -5,7 +5,7 @@ rust-version = "1.85.0"
 license = "MIT"
 homepage = "https://github.com/cashubtc/cdk"
 repository = "https://github.com/cashubtc/cdk.git"
-version = "0.17.2-rc.0"
+version = "0.17.2-rc.1"
 readme = "README.md"
 
 [lib]
@@ -18,7 +18,7 @@ name = "uniffi-bindgen-swift"
 path = "uniffi-bindgen-swift.rs"
 
 [dependencies]
-cdk-ffi = { version = "=0.17.2-rc.0", default-features = false, features = ["npubcash", "bip353"] }
+cdk-ffi = { version = "=0.17.2-rc.1", default-features = false, features = ["npubcash", "bip353"] }
 uniffi = { version = "0.30", features = ["cli"] }
 
 
