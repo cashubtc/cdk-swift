@@ -8780,7 +8780,9 @@ open class WalletRepository: WalletRepositoryProtocol, @unchecked Sendable {
         return try! rustCall { uniffi_cdk_ffi_fn_clone_walletrepository(self.handle, $0) }
     }
     /**
-     * Create a new WalletRepository
+     * Create a new WalletRepository from locally persisted wallet state.
+     *
+     * Construction does not make network requests to configured mints.
      *
      * Accepts a `WalletStore` which can be:
      * - `Sqlite { path }` — built-in Rust SQLite backend
@@ -8804,7 +8806,11 @@ public convenience init(mnemonic: String, store: WalletStore)throws  {
 
     
     /**
-     * Create a new WalletRepository with proxy configuration
+     * Create a new WalletRepository with proxy configuration.
+     *
+     * Construction restores locally persisted wallet state without making
+     * network requests to configured mints. The proxy is used by subsequent
+     * mint operations.
      */
 public static func newWithProxy(mnemonic: String, store: WalletStore, proxyUrl: String)throws  -> WalletRepository  {
     return try  FfiConverterTypeWalletRepository_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
@@ -21651,10 +21657,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_constructor_wallet_new() != 18752) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new() != 16691) {
+    if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new() != 35127) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new_with_proxy() != 34392) {
+    if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new_with_proxy() != 18844) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_walletsqlitedatabase_new() != 10235) {
