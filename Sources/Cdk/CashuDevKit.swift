@@ -557,7 +557,12 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 
 /**
- * FFI-compatible ActiveSubscription
+ * FFI-compatible active wallet subscription.
+ *
+ * Subscriptions may keep polling or receiving network events while callers
+ * wait for notifications. Mobile hosts should cancel, drop, or stop waiting on
+ * subscriptions during app background transitions when background network or
+ * storage activity is not desired.
  */
 public protocol ActiveSubscriptionProtocol: AnyObject, Sendable {
     
@@ -567,18 +572,30 @@ public protocol ActiveSubscriptionProtocol: AnyObject, Sendable {
     func id()  -> String
     
     /**
-     * Receive the next notification
+     * Receive the next notification.
+     *
+     * This waits for subscription activity. Mobile hosts should stop waiting or
+     * cancel the subscription during app background transitions unless
+     * background network activity is intended.
      */
     func recv() async throws  -> NotificationPayload
     
     /**
-     * Try to receive a notification without blocking
+     * Try to receive a notification without blocking.
+     *
+     * Mobile hosts should still cancel or drop the subscription during app
+     * background transitions when background network activity is not desired.
      */
     func tryRecv() async throws  -> NotificationPayload?
     
 }
 /**
- * FFI-compatible ActiveSubscription
+ * FFI-compatible active wallet subscription.
+ *
+ * Subscriptions may keep polling or receiving network events while callers
+ * wait for notifications. Mobile hosts should cancel, drop, or stop waiting on
+ * subscriptions during app background transitions when background network or
+ * storage activity is not desired.
  */
 open class ActiveSubscription: ActiveSubscriptionProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -640,7 +657,11 @@ open func id() -> String  {
 }
     
     /**
-     * Receive the next notification
+     * Receive the next notification.
+     *
+     * This waits for subscription activity. Mobile hosts should stop waiting or
+     * cancel the subscription during app background transitions unless
+     * background network activity is intended.
      */
 open func recv()async throws  -> NotificationPayload  {
     return
@@ -660,7 +681,10 @@ open func recv()async throws  -> NotificationPayload  {
 }
     
     /**
-     * Try to receive a notification without blocking
+     * Try to receive a notification without blocking.
+     *
+     * Mobile hosts should still cancel or drop the subscription during app
+     * background transitions when background network activity is not desired.
      */
 open func tryRecv()async throws  -> NotificationPayload?  {
     return
@@ -739,6 +763,16 @@ public func FfiConverterTypeActiveSubscription_lower(_ value: ActiveSubscription
 public protocol NostrWaitInfoProtocol: AnyObject, Sendable {
     
     /**
+     * Get whether the original request's mint list is preferred instead of strict
+     */
+    func mintPreferred()  -> Bool?
+    
+    /**
+     * Get the mint URLs accepted or preferred by the original payment request
+     */
+    func mints()  -> [String]
+    
+    /**
      * Get the recipient public key as a hex string
      */
     func pubkey()  -> String
@@ -803,6 +837,28 @@ open class NostrWaitInfo: NostrWaitInfoProtocol, @unchecked Sendable {
 
     
 
+    
+    /**
+     * Get whether the original request's mint list is preferred instead of strict
+     */
+open func mintPreferred() -> Bool?  {
+    return try!  FfiConverterOptionBool.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_nostrwaitinfo_mint_preferred(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Get the mint URLs accepted or preferred by the original payment request
+     */
+open func mints() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_nostrwaitinfo_mints(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
     
     /**
      * Get the recipient public key as a hex string
@@ -1433,6 +1489,11 @@ public protocol PaymentRequestProtocol: AnyObject, Sendable {
     func description()  -> String?
     
     /**
+     * Get whether the mint list is preferred instead of strict.
+     */
+    func mintPreferred()  -> Bool?
+    
+    /**
      * Get the list of acceptable mint URLs
      */
     func mints()  -> [String]
@@ -1446,6 +1507,11 @@ public protocol PaymentRequestProtocol: AnyObject, Sendable {
      * Get whether this is a single-use request
      */
     func singleUse()  -> Bool?
+    
+    /**
+     * Get the list of supported payment methods the mint must support
+     */
+    func supportedMethods()  -> [SupportedMethod]
     
     /**
      * Encode the payment request to a NUT-26 bech32m string (creqB prefix)
@@ -1575,6 +1641,17 @@ open func description() -> String?  {
 }
     
     /**
+     * Get whether the mint list is preferred instead of strict.
+     */
+open func mintPreferred() -> Bool?  {
+    return try!  FfiConverterOptionBool.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_mint_preferred(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
      * Get the list of acceptable mint URLs
      */
 open func mints() -> [String]  {
@@ -1602,6 +1679,17 @@ open func paymentId() -> String?  {
 open func singleUse() -> Bool?  {
     return try!  FfiConverterOptionBool.lift(try! rustCall() {
     uniffi_cdk_ffi_fn_method_paymentrequest_single_use(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Get the list of supported payment methods the mint must support
+     */
+open func supportedMethods() -> [SupportedMethod]  {
+    return try!  FfiConverterSequenceTypeSupportedMethod.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_paymentrequest_supported_methods(
             self.uniffiCloneHandle(),$0
     )
 })
@@ -2868,6 +2956,16 @@ public protocol TokenProtocol: AnyObject, Sendable {
     func unit()  -> CurrencyUnit?
     
     /**
+     * Create a NUT-16 UR encoder for displaying this token as an animated
+     * QR code
+     *
+     * `max_fragment_length` is the maximum number of payload bytes per QR
+     * frame; `None` selects a default suited to most QR scanners. Each
+     * `TokenUrEncoder::next_part` fragment is displayed as one QR frame.
+     */
+    func urEncoder(maxFragmentLength: UInt32?) throws  -> TokenUrEncoder
+    
+    /**
      * Get the total value of the token
      */
     func value() throws  -> Amount
@@ -3091,6 +3189,23 @@ open func unit() -> CurrencyUnit?  {
 }
     
     /**
+     * Create a NUT-16 UR encoder for displaying this token as an animated
+     * QR code
+     *
+     * `max_fragment_length` is the maximum number of payload bytes per QR
+     * frame; `None` selects a default suited to most QR scanners. Each
+     * `TokenUrEncoder::next_part` fragment is displayed as one QR frame.
+     */
+open func urEncoder(maxFragmentLength: UInt32?)throws  -> TokenUrEncoder  {
+    return try  FfiConverterTypeTokenUrEncoder_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_token_ur_encoder(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionUInt32.lower(maxFragmentLength),$0
+    )
+})
+}
+    
+    /**
      * Get the total value of the token
      */
 open func value()throws  -> Amount  {
@@ -3152,9 +3267,437 @@ public func FfiConverterTypeToken_lower(_ value: Token) -> UInt64 {
 
 
 /**
- * FFI-compatible Wallet
+ * FFI-compatible NUT-16 UR decoder for animated QR codes
+ *
+ * Reassembles a token from scanned UR fragments. Feed each scanned QR
+ * frame with `receive` in any order until `complete` returns true, then
+ * read the token with `token`.
+ */
+public protocol TokenUrDecoderProtocol: AnyObject, Sendable {
+    
+    /**
+     * Returns whether the token has been fully reassembled
+     */
+    func complete()  -> Bool
+    
+    /**
+     * Returns the total number of fragments the token was split into
+     *
+     * This is `0` until the first multi-part fragment is received.
+     */
+    func fragmentCount()  -> UInt32
+    
+    /**
+     * Feed one scanned QR frame into the decoder
+     *
+     * Accepts both multi-part fragments (`ur:bytes/<seq>-<len>/<payload>`)
+     * and the single-part form (`ur:bytes/<payload>`).
+     */
+    func receive(part: String) throws 
+    
+    /**
+     * Returns the number of fragments resolved so far, either received
+     * directly or recovered via the fountain code
+     *
+     * Useful for progress indication. Returns `None` before any fragment
+     * has been received.
+     */
+    func resolvedFragmentCount()  -> UInt32?
+    
+    /**
+     * Returns the reassembled token once `complete`, `None` while decoding
+     * is incomplete
+     */
+    func token() throws  -> Token?
+    
+}
+/**
+ * FFI-compatible NUT-16 UR decoder for animated QR codes
+ *
+ * Reassembles a token from scanned UR fragments. Feed each scanned QR
+ * frame with `receive` in any order until `complete` returns true, then
+ * read the token with `token`.
+ */
+open class TokenUrDecoder: TokenUrDecoderProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_cdk_ffi_fn_clone_tokenurdecoder(self.handle, $0) }
+    }
+    /**
+     * Create a new decoder
+     */
+public convenience init() {
+    let handle =
+        try! rustCall() {
+    uniffi_cdk_ffi_fn_constructor_tokenurdecoder_new($0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        try! rustCall { uniffi_cdk_ffi_fn_free_tokenurdecoder(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Returns whether the token has been fully reassembled
+     */
+open func complete() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_tokenurdecoder_complete(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns the total number of fragments the token was split into
+     *
+     * This is `0` until the first multi-part fragment is received.
+     */
+open func fragmentCount() -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_tokenurdecoder_fragment_count(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Feed one scanned QR frame into the decoder
+     *
+     * Accepts both multi-part fragments (`ur:bytes/<seq>-<len>/<payload>`)
+     * and the single-part form (`ur:bytes/<payload>`).
+     */
+open func receive(part: String)throws   {try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_tokenurdecoder_receive(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(part),$0
+    )
+}
+}
+    
+    /**
+     * Returns the number of fragments resolved so far, either received
+     * directly or recovered via the fountain code
+     *
+     * Useful for progress indication. Returns `None` before any fragment
+     * has been received.
+     */
+open func resolvedFragmentCount() -> UInt32?  {
+    return try!  FfiConverterOptionUInt32.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_tokenurdecoder_resolved_fragment_count(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns the reassembled token once `complete`, `None` while decoding
+     * is incomplete
+     */
+open func token()throws  -> Token?  {
+    return try  FfiConverterOptionTypeToken.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_tokenurdecoder_token(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTokenUrDecoder: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = TokenUrDecoder
+
+    public static func lift(_ handle: UInt64) throws -> TokenUrDecoder {
+        return TokenUrDecoder(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: TokenUrDecoder) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TokenUrDecoder {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: TokenUrDecoder, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenUrDecoder_lift(_ handle: UInt64) throws -> TokenUrDecoder {
+    return try FfiConverterTypeTokenUrDecoder.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenUrDecoder_lower(_ value: TokenUrDecoder) -> UInt64 {
+    return FfiConverterTypeTokenUrDecoder.lower(value)
+}
+
+
+
+
+
+
+/**
+ * FFI-compatible NUT-16 UR encoder for animated QR codes
+ *
+ * Splits a token into a fountain-coded sequence of UR fragments
+ * (`ur:bytes/…`), one per QR frame. The first `fragment_count` frames cover
+ * the whole token; the stream is unbounded and frames beyond that are
+ * redundant fountain parts, so a receiver can complete from any
+ * sufficiently large subset of frames. Senders typically loop the frames
+ * until the receiver signals completion.
+ *
+ * If the token fits into a single frame, the single-part form
+ * (`ur:bytes/<payload>`, without fragment indices) is emitted.
+ */
+public protocol TokenUrEncoderProtocol: AnyObject, Sendable {
+    
+    /**
+     * Returns the number of fragments emitted so far
+     */
+    func currentIndex()  -> UInt32
+    
+    /**
+     * Returns the number of fragments the token was split into
+     */
+    func fragmentCount()  -> UInt32
+    
+    /**
+     * Returns whether the token fits into a single QR frame
+     */
+    func isSingleFragment()  -> Bool
+    
+    /**
+     * Returns the next UR fragment to display as a QR frame
+     */
+    func nextPart() throws  -> String
+    
+}
+/**
+ * FFI-compatible NUT-16 UR encoder for animated QR codes
+ *
+ * Splits a token into a fountain-coded sequence of UR fragments
+ * (`ur:bytes/…`), one per QR frame. The first `fragment_count` frames cover
+ * the whole token; the stream is unbounded and frames beyond that are
+ * redundant fountain parts, so a receiver can complete from any
+ * sufficiently large subset of frames. Senders typically loop the frames
+ * until the receiver signals completion.
+ *
+ * If the token fits into a single frame, the single-part form
+ * (`ur:bytes/<payload>`, without fragment indices) is emitted.
+ */
+open class TokenUrEncoder: TokenUrEncoderProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_cdk_ffi_fn_clone_tokenurencoder(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_cdk_ffi_fn_free_tokenurencoder(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Returns the number of fragments emitted so far
+     */
+open func currentIndex() -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_tokenurencoder_current_index(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns the number of fragments the token was split into
+     */
+open func fragmentCount() -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_tokenurencoder_fragment_count(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns whether the token fits into a single QR frame
+     */
+open func isSingleFragment() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_tokenurencoder_is_single_fragment(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns the next UR fragment to display as a QR frame
+     */
+open func nextPart()throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_tokenurencoder_next_part(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTokenUrEncoder: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = TokenUrEncoder
+
+    public static func lift(_ handle: UInt64) throws -> TokenUrEncoder {
+        return TokenUrEncoder(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: TokenUrEncoder) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TokenUrEncoder {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: TokenUrEncoder, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenUrEncoder_lift(_ handle: UInt64) throws -> TokenUrEncoder {
+    return try FfiConverterTypeTokenUrEncoder.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenUrEncoder_lower(_ value: TokenUrEncoder) -> UInt64 {
+    return FfiConverterTypeTokenUrEncoder.lower(value)
+}
+
+
+
+
+
+
+/**
+ * FFI-compatible wallet.
+ *
+ * Wallet methods can write to the configured local store while they perform
+ * mint, receive, recovery, subscription, and status operations. Mobile host
+ * apps own platform lifecycle handling around these calls: pause or cancel work
+ * when moving to the background unless background network and storage activity
+ * is intended, and use platform facilities such as iOS `beginBackgroundTask`
+ * when an operation must finish after a lifecycle transition.
  */
 public protocol WalletProtocol: AnyObject, Sendable {
+    
+    /**
+     * Get the active keyset with the lowest fees
+     */
+    func activeKeyset() async throws  -> KeySet
     
     /**
      * Calculate fee for a given number of proofs with the specified keyset
@@ -3166,6 +3709,9 @@ public protocol WalletProtocol: AnyObject, Sendable {
      *
      * This function checks orphaned pending proofs (not managed by active sagas)
      * with the mint and marks spent proofs accordingly.
+     * It may perform network requests and write proof-state updates to the
+     * local store, so mobile hosts should coordinate it with app lifecycle
+     * transitions.
      */
     func checkAllPendingProofs() async throws  -> Amount
     
@@ -3181,6 +3727,9 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Updates local store with current state from mint.
      * If there was a crashed mid-mint (pending saga), attempts to complete it.
      * Does NOT mint tokens directly - use mint() for that.
+     * This may perform network requests and write recovery/status updates to
+     * the local store, so mobile hosts should coordinate it with app lifecycle
+     * transitions.
      *
      * **Note:** The mint quote must be known to the wallet (stored locally) for this
      * function to work. If the quote is not stored locally, use `fetch_mint_quote`
@@ -3195,6 +3744,9 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Updates local store with current state from mint.
      * If there was a crashed mid-mint (pending saga), attempts to complete it.
      * Does NOT mint tokens directly - use mint() for that.
+     * This may perform network requests and write recovery/status updates to
+     * the local store, so mobile hosts should coordinate it with app lifecycle
+     * transitions.
      *
      * **Note:** The mint quote must be known to the wallet (stored locally) for this
      * function to work. If the quote is not stored locally, use `fetch_mint_quote`
@@ -3213,9 +3765,18 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func checkSendStatus(operationId: String) async throws  -> Bool
     
     /**
-     * Fetch active keyset with lowest fees
+     * Create quotes for transferring the maximum amount allowed by the source
+     * balance and both mints' advertised BOLT11 limits.
+     *
+     * The returned input fee assumes all currently unspent source proofs are
+     * used. Prepare the returned melt quote with those proofs and confirm it
+     * with `skip_swap` to preserve that accounting.
+     *
+     * This search may create multiple quote pairs at the remote mints. Only the
+     * returned pair is persisted locally; unused remote quotes cannot be
+     * cancelled and remain until they expire.
      */
-    func fetchActiveKeyset() async throws  -> KeySetInfo
+    func crossMintTransferQuoteMax(targetWallet: Wallet) async throws  -> CrossMintTransferQuote
     
     /**
      * Get mint info from mint
@@ -3223,7 +3784,11 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func fetchMintInfo() async throws  -> MintInfo?
     
     /**
-     * Fetch a mint quote from the mint and store it locally
+     * Fetch a mint quote from the mint and store it locally.
+     *
+     * This performs network I/O and writes the fetched quote to the local store.
+     * Mobile hosts should avoid starting it during app background transitions
+     * unless background network and storage activity is intended.
      *
      * Works with all payment methods (Bolt11, Bolt12, and custom payment methods).
      *
@@ -3241,9 +3806,13 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func finalizePendingMelts() async throws  -> [FinalizedMelt]
     
     /**
-     * Get the active keyset for the wallet's unit
+     * Wait until the rate-limit budget this wallet drew down has been stored.
+     *
+     * Await this before dropping the wallet on shutdown. Without it,
+     * persistence is best effort and a rebuild can outrun the detached writer,
+     * so the rebuilt wallet starts with a full burst against the mint's cap.
      */
-    func getActiveKeyset() async throws  -> KeySetInfo
+    func flushRateLimits() async 
     
     /**
      * Get fee for count of proofs in a keyset
@@ -3264,11 +3833,6 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Get fees for a specific keyset ID
      */
     func getKeysetFeesById(keysetId: String) async throws  -> UInt64
-    
-    /**
-     * Get keysets for this wallet's unit with filter
-     */
-    func getMintKeysets(filter: KeysetFilter) async throws  -> [KeySetInfo]
     
     /**
      * Get all pending send operations
@@ -3299,14 +3863,27 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func getUnspentAuthProofs() async throws  -> [AuthProof]
     
     /**
+     * Whether this wallet's requests are being paced right now.
+     *
+     * Also false when the wallet paces nothing at all, which is the case
+     * [`Wallet::set_rate_limit`] silently ignores.
+     */
+    func isRateLimited()  -> Bool
+    
+    /**
+     * Get a single keyset by ID
+     */
+    func keyset(keysetId: String) async throws  -> KeySet
+    
+    /**
+     * Get all keysets for this wallet's unit
+     */
+    func keysets(policy: KeysetLoadPolicy?) async throws  -> [KeySet]
+    
+    /**
      * List transactions
      */
     func listTransactions(direction: TransactionDirection?) async throws  -> [Transaction]
-    
-    /**
-     * Load keys for a specific keyset
-     */
-    func loadKeysetKeys(keysetId: String) async throws  -> Keys
     
     /**
      * Load mint info
@@ -3314,11 +3891,6 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * This will get mint info from cache if it is fresh
      */
     func loadMintInfo() async throws  -> MintInfo
-    
-    /**
-     * Load active keysets
-     */
-    func loadMintKeysets() async throws  -> [KeySetInfo]
     
     /**
      * Get a quote for a BIP353 melt
@@ -3380,7 +3952,12 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func meltQuote(method: PaymentMethod, request: String, options: MeltOptions?, extra: String?) async throws  -> MeltQuote
     
     /**
-     * Mint tokens
+     * Mint tokens.
+     *
+     * This writes newly issued proofs and saga state to the local store while
+     * communicating with the mint. Mobile hosts should coordinate it with app
+     * lifecycle transitions, using platform background-task support when the
+     * operation must finish after backgrounding.
      */
     func mint(quoteId: String, amountSplitTarget: SplitTarget, spendingConditions: SpendingConditions?) async throws  -> [Proof]
     
@@ -3394,7 +3971,23 @@ public protocol WalletProtocol: AnyObject, Sendable {
      */
     func mintQuote(paymentMethod: PaymentMethod, amount: Amount?, description: String?, extra: String?) async throws  -> MintQuote
     
+    /**
+     * Mint tokens using the unified payment-method interface.
+     *
+     * This writes newly issued proofs and saga state to the local store while
+     * communicating with the mint. Mobile hosts should coordinate it with app
+     * lifecycle transitions, using platform background-task support when the
+     * operation must finish after backgrounding.
+     */
     func mintUnified(quoteId: String, amountSplitTarget: SplitTarget, spendingConditions: SpendingConditions?) async throws  -> [Proof]
+    
+    /**
+     * Check and mint any paid but unissued mint quotes.
+     *
+     * This is useful during startup or recovery after incomplete mint quote flows.
+     * It may perform network requests and write newly issued proofs to the wallet store.
+     */
+    func mintUnissuedQuotes() async throws  -> Amount
     
     /**
      * Get the mint URL
@@ -3471,12 +4064,20 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func quoteOnchainMeltOptions(address: String, amount: Amount, maxFeeAmount: Amount?) async throws  -> [MeltQuote]
     
     /**
-     * Receive tokens
+     * Receive tokens.
+     *
+     * This verifies and persists received proofs in the local store. Mobile
+     * hosts should avoid starting it during app background transitions unless
+     * background network and storage activity is intended.
      */
     func receive(token: Token, options: ReceiveOptions) async throws  -> Amount
     
     /**
-     * Receive proofs directly
+     * Receive proofs directly.
+     *
+     * This verifies and persists received proofs in the local store. Mobile
+     * hosts should avoid starting it during app background transitions unless
+     * background network and storage activity is intended.
      */
     func receiveProofs(proofs: [Proof], options: ReceiveOptions, memo: String?, token: String?) async throws  -> Amount
     
@@ -3485,6 +4086,10 @@ public protocol WalletProtocol: AnyObject, Sendable {
      *
      * Handles interrupted swap, send, receive, issue, and melt operations. Requires
      * network access to the mint for states that need external status checks.
+     * Recovery writes saga, proof, quote, and transaction updates to the local
+     * store. Mobile hosts should run it only when background network and storage
+     * activity is acceptable, or wrap it in platform background-task support
+     * such as iOS `beginBackgroundTask`.
      */
     func recoverIncompleteSagas() async throws  -> RecoveryReport
     
@@ -3492,11 +4097,6 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Refresh access token using the stored refresh token
      */
     func refreshAccessToken() async throws 
-    
-    /**
-     * Refresh keysets from the mint
-     */
-    func refreshKeysets() async throws  -> [KeySetInfo]
     
     /**
      * Restore wallet from seed
@@ -3551,12 +4151,32 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func setMetadataCacheTtl(ttlSecs: UInt64?) 
     
     /**
+     * Change client-side request rate limiting on this wallet.
+     *
+     * A new wallet starts with whatever `WalletConfig.rate_limit` selected. Use
+     * this to disable pacing, restore the default, or set a custom burst and
+     * refill. It takes effect immediately and covers every host the wallet's
+     * limiter paces, so it reaches the main and blind-auth clients as well as
+     * any third-party host their transport reaches. For a wallet built through
+     * a wallet repository the limiter is shared, so the change is
+     * repository-wide.
+     *
+     * Returns an error if a `Custom` value has a zero field.
+     */
+    func setRateLimit(rateLimit: RateLimit) throws 
+    
+    /**
      * Set refresh token for authentication
      */
     func setRefreshToken(refreshToken: String) async throws 
     
     /**
-     * Subscribe to wallet events
+     * Subscribe to wallet events.
+     *
+     * The returned subscription may keep polling or receiving network events
+     * until it is dropped or closed. Mobile hosts should cancel, drop, or stop
+     * waiting on subscriptions during app background transitions when
+     * background network or storage activity is not desired.
      */
     func subscribe(params: SubscribeParams) async throws  -> ActiveSubscription
     
@@ -3568,6 +4188,10 @@ public protocol WalletProtocol: AnyObject, Sendable {
      *
      * Use `recv()` on the returned `ActiveSubscription` to receive updates as
      * `NotificationPayload::MintQuoteUpdate`.
+     * The returned subscription may keep polling or receiving network events
+     * until it is dropped or closed. Mobile hosts should cancel, drop, or stop
+     * waiting on subscriptions during app background transitions when
+     * background network or storage activity is not desired.
      *
      * All quote IDs must belong to the same payment method.
      *
@@ -3609,7 +4233,14 @@ public protocol WalletProtocol: AnyObject, Sendable {
     
 }
 /**
- * FFI-compatible Wallet
+ * FFI-compatible wallet.
+ *
+ * Wallet methods can write to the configured local store while they perform
+ * mint, receive, recovery, subscription, and status operations. Mobile host
+ * apps own platform lifecycle handling around these calls: pause or cancel work
+ * when moving to the background unless background network and storage activity
+ * is intended, and use platform facilities such as iOS `beginBackgroundTask`
+ * when an operation must finish after a lifecycle transition.
  */
 open class Wallet: WalletProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -3651,7 +4282,13 @@ open class Wallet: WalletProtocol, @unchecked Sendable {
         return try! rustCall { uniffi_cdk_ffi_fn_clone_wallet(self.handle, $0) }
     }
     /**
-     * Create a new Wallet
+     * Create a new wallet.
+     *
+     * The returned wallet uses `store` for local state. FFI wallet methods may
+     * write to that store later, so mobile host apps are responsible for
+     * choosing durable storage locations and coordinating lifecycle transitions
+     * around wallet calls. For example, use iOS `beginBackgroundTask` if a
+     * write-capable operation must continue after the app backgrounds.
      *
      * Accepts a `WalletStore` which can be:
      * - `Sqlite { path }` — built-in Rust SQLite backend
@@ -3680,6 +4317,26 @@ public convenience init(mintUrl: String, unit: CurrencyUnit, mnemonic: String, s
 
     
     /**
+     * Get the active keyset with the lowest fees
+     */
+open func activeKeyset()async throws  -> KeySet  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_active_keyset(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeKeySet_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Calculate fee for a given number of proofs with the specified keyset
      */
 open func calculateFee(proofCount: UInt32, keysetId: String)async throws  -> Amount  {
@@ -3704,6 +4361,9 @@ open func calculateFee(proofCount: UInt32, keysetId: String)async throws  -> Amo
      *
      * This function checks orphaned pending proofs (not managed by active sagas)
      * with the mint and marks spent proofs accordingly.
+     * It may perform network requests and write proof-state updates to the
+     * local store, so mobile hosts should coordinate it with app lifecycle
+     * transitions.
      */
 open func checkAllPendingProofs()async throws  -> Amount  {
     return
@@ -3749,6 +4409,9 @@ open func checkMeltQuoteStatus(quoteId: String)async throws  -> MeltQuote  {
      * Updates local store with current state from mint.
      * If there was a crashed mid-mint (pending saga), attempts to complete it.
      * Does NOT mint tokens directly - use mint() for that.
+     * This may perform network requests and write recovery/status updates to
+     * the local store, so mobile hosts should coordinate it with app lifecycle
+     * transitions.
      *
      * **Note:** The mint quote must be known to the wallet (stored locally) for this
      * function to work. If the quote is not stored locally, use `fetch_mint_quote`
@@ -3778,6 +4441,9 @@ open func checkMintQuote(quoteId: String)async throws  -> MintQuote  {
      * Updates local store with current state from mint.
      * If there was a crashed mid-mint (pending saga), attempts to complete it.
      * Does NOT mint tokens directly - use mint() for that.
+     * This may perform network requests and write recovery/status updates to
+     * the local store, so mobile hosts should coordinate it with app lifecycle
+     * transitions.
      *
      * **Note:** The mint quote must be known to the wallet (stored locally) for this
      * function to work. If the quote is not stored locally, use `fetch_mint_quote`
@@ -3841,21 +4507,30 @@ open func checkSendStatus(operationId: String)async throws  -> Bool  {
 }
     
     /**
-     * Fetch active keyset with lowest fees
+     * Create quotes for transferring the maximum amount allowed by the source
+     * balance and both mints' advertised BOLT11 limits.
+     *
+     * The returned input fee assumes all currently unspent source proofs are
+     * used. Prepare the returned melt quote with those proofs and confirm it
+     * with `skip_swap` to preserve that accounting.
+     *
+     * This search may create multiple quote pairs at the remote mints. Only the
+     * returned pair is persisted locally; unused remote quotes cannot be
+     * cancelled and remain until they expire.
      */
-open func fetchActiveKeyset()async throws  -> KeySetInfo  {
+open func crossMintTransferQuoteMax(targetWallet: Wallet)async throws  -> CrossMintTransferQuote  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_wallet_fetch_active_keyset(
-                    self.uniffiCloneHandle()
-                    
+                uniffi_cdk_ffi_fn_method_wallet_cross_mint_transfer_quote_max(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeWallet_lower(targetWallet)
                 )
             },
             pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeKeySetInfo_lift,
+            liftFunc: FfiConverterTypeCrossMintTransferQuote_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -3881,7 +4556,11 @@ open func fetchMintInfo()async throws  -> MintInfo?  {
 }
     
     /**
-     * Fetch a mint quote from the mint and store it locally
+     * Fetch a mint quote from the mint and store it locally.
+     *
+     * This performs network I/O and writes the fetched quote to the local store.
+     * Mobile hosts should avoid starting it during app background transitions
+     * unless background network and storage activity is intended.
      *
      * Works with all payment methods (Bolt11, Bolt12, and custom payment methods).
      *
@@ -3929,22 +4608,27 @@ open func finalizePendingMelts()async throws  -> [FinalizedMelt]  {
 }
     
     /**
-     * Get the active keyset for the wallet's unit
+     * Wait until the rate-limit budget this wallet drew down has been stored.
+     *
+     * Await this before dropping the wallet on shutdown. Without it,
+     * persistence is best effort and a rebuild can outrun the detached writer,
+     * so the rebuilt wallet starts with a full burst against the mint's cap.
      */
-open func getActiveKeyset()async throws  -> KeySetInfo  {
+open func flushRateLimits()async   {
     return
-        try  await uniffiRustCallAsync(
+        try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_wallet_get_active_keyset(
+                uniffi_cdk_ffi_fn_method_wallet_flush_rate_limits(
                     self.uniffiCloneHandle()
                     
                 )
             },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeKeySetInfo_lift,
-            errorHandler: FfiConverterTypeFfiError_lift
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
         )
 }
     
@@ -4024,26 +4708,6 @@ open func getKeysetFeesById(keysetId: String)async throws  -> UInt64  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
             freeFunc: ffi_cdk_ffi_rust_future_free_u64,
             liftFunc: FfiConverterUInt64.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-    /**
-     * Get keysets for this wallet's unit with filter
-     */
-open func getMintKeysets(filter: KeysetFilter)async throws  -> [KeySetInfo]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_wallet_get_mint_keysets(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypeKeysetFilter_lower(filter)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeKeySetInfo.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -4152,6 +4816,60 @@ open func getUnspentAuthProofs()async throws  -> [AuthProof]  {
 }
     
     /**
+     * Whether this wallet's requests are being paced right now.
+     *
+     * Also false when the wallet paces nothing at all, which is the case
+     * [`Wallet::set_rate_limit`] silently ignores.
+     */
+open func isRateLimited() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_wallet_is_rate_limited(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Get a single keyset by ID
+     */
+open func keyset(keysetId: String)async throws  -> KeySet  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_keyset(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(keysetId)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeKeySet_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get all keysets for this wallet's unit
+     */
+open func keysets(policy: KeysetLoadPolicy?)async throws  -> [KeySet]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_keysets(
+                    self.uniffiCloneHandle(),
+                    FfiConverterOptionTypeKeysetLoadPolicy.lower(policy)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeKeySet.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * List transactions
      */
 open func listTransactions(direction: TransactionDirection?)async throws  -> [Transaction]  {
@@ -4167,26 +4885,6 @@ open func listTransactions(direction: TransactionDirection?)async throws  -> [Tr
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeTransaction.lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-    /**
-     * Load keys for a specific keyset
-     */
-open func loadKeysetKeys(keysetId: String)async throws  -> Keys  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_wallet_load_keyset_keys(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(keysetId)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeKeys_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -4209,26 +4907,6 @@ open func loadMintInfo()async throws  -> MintInfo  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeMintInfo_lift,
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-    /**
-     * Load active keysets
-     */
-open func loadMintKeysets()async throws  -> [KeySetInfo]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_wallet_load_mint_keysets(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeKeySetInfo.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -4368,7 +5046,12 @@ open func meltQuote(method: PaymentMethod, request: String, options: MeltOptions
 }
     
     /**
-     * Mint tokens
+     * Mint tokens.
+     *
+     * This writes newly issued proofs and saga state to the local store while
+     * communicating with the mint. Mobile hosts should coordinate it with app
+     * lifecycle transitions, using platform background-task support when the
+     * operation must finish after backgrounding.
      */
 open func mint(quoteId: String, amountSplitTarget: SplitTarget, spendingConditions: SpendingConditions?)async throws  -> [Proof]  {
     return
@@ -4427,6 +5110,14 @@ open func mintQuote(paymentMethod: PaymentMethod, amount: Amount?, description: 
         )
 }
     
+    /**
+     * Mint tokens using the unified payment-method interface.
+     *
+     * This writes newly issued proofs and saga state to the local store while
+     * communicating with the mint. Mobile hosts should coordinate it with app
+     * lifecycle transitions, using platform background-task support when the
+     * operation must finish after backgrounding.
+     */
 open func mintUnified(quoteId: String, amountSplitTarget: SplitTarget, spendingConditions: SpendingConditions?)async throws  -> [Proof]  {
     return
         try  await uniffiRustCallAsync(
@@ -4440,6 +5131,29 @@ open func mintUnified(quoteId: String, amountSplitTarget: SplitTarget, spendingC
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeProof.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Check and mint any paid but unissued mint quotes.
+     *
+     * This is useful during startup or recovery after incomplete mint quote flows.
+     * It may perform network requests and write newly issued proofs to the wallet store.
+     */
+open func mintUnissuedQuotes()async throws  -> Amount  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_mint_unissued_quotes(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeAmount_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -4615,7 +5329,11 @@ open func quoteOnchainMeltOptions(address: String, amount: Amount, maxFeeAmount:
 }
     
     /**
-     * Receive tokens
+     * Receive tokens.
+     *
+     * This verifies and persists received proofs in the local store. Mobile
+     * hosts should avoid starting it during app background transitions unless
+     * background network and storage activity is intended.
      */
 open func receive(token: Token, options: ReceiveOptions)async throws  -> Amount  {
     return
@@ -4635,7 +5353,11 @@ open func receive(token: Token, options: ReceiveOptions)async throws  -> Amount 
 }
     
     /**
-     * Receive proofs directly
+     * Receive proofs directly.
+     *
+     * This verifies and persists received proofs in the local store. Mobile
+     * hosts should avoid starting it during app background transitions unless
+     * background network and storage activity is intended.
      */
 open func receiveProofs(proofs: [Proof], options: ReceiveOptions, memo: String?, token: String?)async throws  -> Amount  {
     return
@@ -4659,6 +5381,10 @@ open func receiveProofs(proofs: [Proof], options: ReceiveOptions, memo: String?,
      *
      * Handles interrupted swap, send, receive, issue, and melt operations. Requires
      * network access to the mint for states that need external status checks.
+     * Recovery writes saga, proof, quote, and transaction updates to the local
+     * store. Mobile hosts should run it only when background network and storage
+     * activity is acceptable, or wrap it in platform background-task support
+     * such as iOS `beginBackgroundTask`.
      */
 open func recoverIncompleteSagas()async throws  -> RecoveryReport  {
     return
@@ -4693,26 +5419,6 @@ open func refreshAccessToken()async throws   {
             completeFunc: ffi_cdk_ffi_rust_future_complete_void,
             freeFunc: ffi_cdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-    /**
-     * Refresh keysets from the mint
-     */
-open func refreshKeysets()async throws  -> [KeySetInfo]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_wallet_refresh_keysets(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeKeySetInfo.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -4866,6 +5572,27 @@ open func setMetadataCacheTtl(ttlSecs: UInt64?)  {try! rustCall() {
 }
     
     /**
+     * Change client-side request rate limiting on this wallet.
+     *
+     * A new wallet starts with whatever `WalletConfig.rate_limit` selected. Use
+     * this to disable pacing, restore the default, or set a custom burst and
+     * refill. It takes effect immediately and covers every host the wallet's
+     * limiter paces, so it reaches the main and blind-auth clients as well as
+     * any third-party host their transport reaches. For a wallet built through
+     * a wallet repository the limiter is shared, so the change is
+     * repository-wide.
+     *
+     * Returns an error if a `Custom` value has a zero field.
+     */
+open func setRateLimit(rateLimit: RateLimit)throws   {try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_wallet_set_rate_limit(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeRateLimit_lower(rateLimit),$0
+    )
+}
+}
+    
+    /**
      * Set refresh token for authentication
      */
 open func setRefreshToken(refreshToken: String)async throws   {
@@ -4886,7 +5613,12 @@ open func setRefreshToken(refreshToken: String)async throws   {
 }
     
     /**
-     * Subscribe to wallet events
+     * Subscribe to wallet events.
+     *
+     * The returned subscription may keep polling or receiving network events
+     * until it is dropped or closed. Mobile hosts should cancel, drop, or stop
+     * waiting on subscriptions during app background transitions when
+     * background network or storage activity is not desired.
      */
 open func subscribe(params: SubscribeParams)async throws  -> ActiveSubscription  {
     return
@@ -4913,6 +5645,10 @@ open func subscribe(params: SubscribeParams)async throws  -> ActiveSubscription 
      *
      * Use `recv()` on the returned `ActiveSubscription` to receive updates as
      * `NotificationPayload::MintQuoteUpdate`.
+     * The returned subscription may keep polling or receiving network events
+     * until it is dropped or closed. Mobile hosts should cancel, drop, or stop
+     * waiting on subscriptions during app background transitions when
+     * background network or storage activity is not desired.
      *
      * All quote IDs must belong to the same payment method.
      *
@@ -5251,6 +5987,11 @@ public protocol WalletDatabase: AnyObject, Sendable {
     func incrementKeysetCounter(keysetId: Id, count: UInt32) async throws  -> UInt32
     
     /**
+     * Atomically increment a namespaced derivation counter and return its new value.
+     */
+    func incrementDerivationCounter(namespace: String, count: UInt32) async throws  -> UInt32
+    
+    /**
      * Add Mint to storage
      */
     func addMint(mintUrl: MintUrl, mintInfo: MintInfo?) async throws 
@@ -5329,7 +6070,11 @@ public protocol WalletDatabase: AnyObject, Sendable {
     func reserveProofs(ys: [PublicKey], operationId: String) async throws 
     
     /**
-     * Release proofs reserved by an operation
+     * Release live proofs reserved by an operation.
+     *
+     * Implementations must only change Reserved or Pending proofs owned by
+     * `operation_id`; Spent proofs and proofs owned by another operation must
+     * be preserved.
      */
     func releaseProofs(operationId: String) async throws 
     
@@ -5993,6 +6738,26 @@ open func incrementKeysetCounter(keysetId: Id, count: UInt32)async throws  -> UI
 }
     
     /**
+     * Atomically increment a namespaced derivation counter and return its new value.
+     */
+open func incrementDerivationCounter(namespace: String, count: UInt32)async throws  -> UInt32  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_walletdatabase_increment_derivation_counter(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(namespace),FfiConverterUInt32.lower(count)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_u32,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_u32,
+            freeFunc: ffi_cdk_ffi_rust_future_free_u32,
+            liftFunc: FfiConverterUInt32.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Add Mint to storage
      */
 open func addMint(mintUrl: MintUrl, mintInfo: MintInfo?)async throws   {
@@ -6296,7 +7061,11 @@ open func reserveProofs(ys: [PublicKey], operationId: String)async throws   {
 }
     
     /**
-     * Release proofs reserved by an operation
+     * Release live proofs reserved by an operation.
+     *
+     * Implementations must only change Reserved or Pending proofs owned by
+     * `operation_id`; Spent proofs and proofs owned by another operation must
+     * be preserved.
      */
 open func releaseProofs(operationId: String)async throws   {
     return
@@ -7705,6 +8474,51 @@ fileprivate struct UniffiCallbackInterfaceWalletDatabase {
                 droppedCallback: uniffiOutDroppedCallback
             )
         },
+        incrementDerivationCounter: { (
+            uniffiHandle: UInt64,
+            namespace: RustBuffer,
+            count: UInt32,
+            uniffiFutureCallback: @escaping UniffiForeignFutureCompleteU32,
+            uniffiCallbackData: UInt64,
+            uniffiOutDroppedCallback: UnsafeMutablePointer<UniffiForeignFutureDroppedCallbackStruct>
+        ) in
+            let makeCall = {
+                () async throws -> UInt32 in
+                guard let uniffiObj = try? FfiConverterTypeWalletDatabase.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try await uniffiObj.incrementDerivationCounter(
+                     namespace: try FfiConverterString.lift(namespace),
+                     count: try FfiConverterUInt32.lift(count)
+                )
+            }
+
+            let uniffiHandleSuccess = { (returnValue: UInt32) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultU32(
+                        returnValue: FfiConverterUInt32.lower(returnValue),
+                        callStatus: RustCallStatus()
+                    )
+                )
+            }
+            let uniffiHandleError = { (statusCode, errorBuf) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultU32(
+                        returnValue: 0,
+                        callStatus: RustCallStatus(code: statusCode, errorBuf: errorBuf)
+                    )
+                )
+            }
+            uniffiTraitInterfaceCallAsyncWithError(
+                makeCall: makeCall,
+                handleSuccess: uniffiHandleSuccess,
+                handleError: uniffiHandleError,
+                lowerError: FfiConverterTypeFfiError_lower,
+                droppedCallback: uniffiOutDroppedCallback
+            )
+        },
         addMint: { (
             uniffiHandle: UInt64,
             mintUrl: RustBuffer,
@@ -8670,9 +9484,28 @@ public protocol WalletRepositoryProtocol: AnyObject, Sendable {
     func fetchMintBackup(relays: [String], options: RestoreOptions) async throws  -> MintBackup
     
     /**
+     * Wait until the rate-limit budgets drawn down by every wallet in this
+     * repository have been handed to storage.
+     *
+     * Await this before dropping the repository on shutdown. Without it,
+     * persistence is best effort and a rebuild can outrun the detached
+     * writer, so every rebuilt wallet starts with a full burst against the
+     * mint's rate cap.
+     */
+    func flushRateLimits() async 
+    
+    /**
      * Get wallet balances for all mints
      */
     func getBalances() async throws  -> [WalletKey: Amount]
+    
+    /**
+     * Get the wallet for a mint URL and unit, creating it if it does not exist
+     *
+     * Unlike `create_wallet`, an existing wallet is returned untouched: its
+     * configuration is not replaced.
+     */
+    func getOrCreateWallet(mintUrl: MintUrl, unit: CurrencyUnit, targetProofCount: UInt32?) async throws  -> Wallet
     
     /**
      * Get token data, including the expected redemption fee, without redeeming it.
@@ -8695,6 +9528,14 @@ public protocol WalletRepositoryProtocol: AnyObject, Sendable {
      * Check if mint is in wallet
      */
     func hasMint(mintUrl: MintUrl) async  -> Bool
+    
+    /**
+     * Whether this repository is pacing requests right now.
+     *
+     * Wallets reached through a proxy or Tor are built with a custom client,
+     * so they report false even while this is true.
+     */
+    func isRateLimited()  -> Bool
     
     /**
      * Get the NUT-27 mint backup public key as hex.
@@ -8735,6 +9576,19 @@ public protocol WalletRepositoryProtocol: AnyObject, Sendable {
      * * `ttl_secs` - Optional TTL in seconds. If None, cache never expires.
      */
     func setMetadataCacheTtlForMint(mintUrl: MintUrl, ttlSecs: UInt64?) async throws 
+    
+    /**
+     * Change client-side request rate limiting for every wallet here.
+     *
+     * Pacing is repository-wide because one limiter is shared, which is why
+     * `create_wallet` and `get_or_create_wallet` take no rate limit: a
+     * per-wallet value would silently reconfigure its siblings. Repository
+     * construction makes no network requests, so calling this immediately
+     * after `new` is equivalent to configuring it through `new_with_config`.
+     *
+     * Returns an error if a `Custom` value has a zero field.
+     */
+    func setRateLimit(rateLimit: RateLimit) throws 
     
 }
 /**
@@ -8804,6 +9658,22 @@ public convenience init(mnemonic: String, store: WalletStore)throws  {
         try! rustCall { uniffi_cdk_ffi_fn_free_walletrepository(handle, $0) }
     }
 
+    
+    /**
+     * Create a new WalletRepository with proxy and rate-limit configuration.
+     *
+     * Construction restores locally persisted wallet state without making
+     * network requests to configured mints.
+     */
+public static func newWithConfig(mnemonic: String, store: WalletStore, config: WalletRepositoryConfig)throws  -> WalletRepository  {
+    return try  FfiConverterTypeWalletRepository_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_constructor_walletrepository_new_with_config(
+        FfiConverterString.lower(mnemonic),
+        FfiConverterTypeWalletStore_lower(store),
+        FfiConverterTypeWalletRepositoryConfig_lower(config),$0
+    )
+})
+}
     
     /**
      * Create a new WalletRepository with proxy configuration.
@@ -8885,6 +9755,33 @@ open func fetchMintBackup(relays: [String], options: RestoreOptions)async throws
 }
     
     /**
+     * Wait until the rate-limit budgets drawn down by every wallet in this
+     * repository have been handed to storage.
+     *
+     * Await this before dropping the repository on shutdown. Without it,
+     * persistence is best effort and a rebuild can outrun the detached
+     * writer, so every rebuilt wallet starts with a full burst against the
+     * mint's rate cap.
+     */
+open func flushRateLimits()async   {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_walletrepository_flush_rate_limits(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
+        )
+}
+    
+    /**
      * Get wallet balances for all mints
      */
 open func getBalances()async throws  -> [WalletKey: Amount]  {
@@ -8900,6 +9797,29 @@ open func getBalances()async throws  -> [WalletKey: Amount]  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterDictionaryTypeWalletKeyTypeAmount.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Get the wallet for a mint URL and unit, creating it if it does not exist
+     *
+     * Unlike `create_wallet`, an existing wallet is returned untouched: its
+     * configuration is not replaced.
+     */
+open func getOrCreateWallet(mintUrl: MintUrl, unit: CurrencyUnit, targetProofCount: UInt32?)async throws  -> Wallet  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_walletrepository_get_or_create_wallet(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeMintUrl_lower(mintUrl),FfiConverterTypeCurrencyUnit_lower(unit),FfiConverterOptionUInt32.lower(targetProofCount)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_u64,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
+            freeFunc: ffi_cdk_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeWallet_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -8986,6 +9906,20 @@ open func hasMint(mintUrl: MintUrl)async  -> Bool  {
             errorHandler: nil
             
         )
+}
+    
+    /**
+     * Whether this repository is pacing requests right now.
+     *
+     * Wallets reached through a proxy or Tor are built with a custom client,
+     * so they report false even while this is true.
+     */
+open func isRateLimited() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_walletrepository_is_rate_limited(
+            self.uniffiCloneHandle(),$0
+    )
+})
 }
     
     /**
@@ -9095,6 +10029,25 @@ open func setMetadataCacheTtlForMint(mintUrl: MintUrl, ttlSecs: UInt64?)async th
         )
 }
     
+    /**
+     * Change client-side request rate limiting for every wallet here.
+     *
+     * Pacing is repository-wide because one limiter is shared, which is why
+     * `create_wallet` and `get_or_create_wallet` take no rate limit: a
+     * per-wallet value would silently reconfigure its siblings. Repository
+     * construction makes no network requests, so calling this immediately
+     * after `new` is equivalent to configuring it through `new_with_config`.
+     *
+     * Returns an error if a `Custom` value has a zero field.
+     */
+open func setRateLimit(rateLimit: RateLimit)throws   {try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_method_walletrepository_set_rate_limit(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeRateLimit_lower(rateLimit),$0
+    )
+}
+}
+    
 
     
 }
@@ -9146,7 +10099,14 @@ public func FfiConverterTypeWalletRepository_lower(_ value: WalletRepository) ->
 
 
 /**
- * FFI-compatible WalletSqliteDatabase implementation that implements the WalletDatabaseFfi trait
+ * FFI-compatible SQLite wallet database.
+ *
+ * Wallet methods can write to this database from FFI calls that mint, receive,
+ * recover, subscribe, or check quote/proof state. Mobile host apps own
+ * lifecycle handling for the database file: choose a durable app-owned path,
+ * avoid interrupting writes during background transitions, and use platform
+ * facilities such as iOS `beginBackgroundTask` when an operation must finish
+ * after backgrounding.
  */
 public protocol WalletSqliteDatabaseProtocol: AnyObject, Sendable {
     
@@ -9204,6 +10164,8 @@ public protocol WalletSqliteDatabaseProtocol: AnyObject, Sendable {
     
     func getUnissuedMintQuotes() async throws  -> [MintQuote]
     
+    func incrementDerivationCounter(namespace: String, count: UInt32) async throws  -> UInt32
+    
     func incrementKeysetCounter(keysetId: Id, count: UInt32) async throws  -> UInt32
     
     func kvList(primaryNamespace: String, secondaryNamespace: String) async throws  -> [String]
@@ -9252,7 +10214,14 @@ public protocol WalletSqliteDatabaseProtocol: AnyObject, Sendable {
     
 }
 /**
- * FFI-compatible WalletSqliteDatabase implementation that implements the WalletDatabaseFfi trait
+ * FFI-compatible SQLite wallet database.
+ *
+ * Wallet methods can write to this database from FFI calls that mint, receive,
+ * recover, subscribe, or check quote/proof state. Mobile host apps own
+ * lifecycle handling for the database file: choose a durable app-owned path,
+ * avoid interrupting writes during background transitions, and use platform
+ * facilities such as iOS `beginBackgroundTask` when an operation must finish
+ * after backgrounding.
  */
 open class WalletSqliteDatabase: WalletSqliteDatabaseProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -9294,7 +10263,11 @@ open class WalletSqliteDatabase: WalletSqliteDatabaseProtocol, @unchecked Sendab
         return try! rustCall { uniffi_cdk_ffi_fn_clone_walletsqlitedatabase(self.handle, $0) }
     }
     /**
-     * Create a new WalletSqliteDatabase with the given work directory
+     * Create a new SQLite wallet database at `file_path`.
+     *
+     * Wallet operations may later write to this database. Mobile hosts are
+     * responsible for choosing a durable file location and coordinating app
+     * lifecycle transitions around write-capable wallet calls.
      */
 public convenience init(filePath: String)throws  {
     let handle =
@@ -9778,6 +10751,23 @@ open func getUnissuedMintQuotes()async throws  -> [MintQuote]  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeMintQuote.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+open func incrementDerivationCounter(namespace: String, count: UInt32)async throws  -> UInt32  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_walletsqlitedatabase_increment_derivation_counter(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(namespace),FfiConverterUInt32.lower(count)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_u32,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_u32,
+            freeFunc: ffi_cdk_ffi_rust_future_free_u32,
+            liftFunc: FfiConverterUInt32.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -10928,6 +11918,10 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
      * Optional list of mint URLs the receiver trusts. If not provided, the wallet's current mints for the requested unit will be used.
      */
     public let mints: [String]?
+    /**
+     * Whether the mint list is preferred rather than required
+     */
+    public let mintPreferred: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -10964,7 +11958,10 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
          */nostrRelays: [String]?, 
         /**
          * Optional list of mint URLs the receiver trusts. If not provided, the wallet's current mints for the requested unit will be used.
-         */mints: [String]?) {
+         */mints: [String]?, 
+        /**
+         * Whether the mint list is preferred rather than required
+         */mintPreferred: Bool?) {
         self.amount = amount
         self.unit = unit
         self.description = description
@@ -10976,6 +11973,7 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
         self.httpUrl = httpUrl
         self.nostrRelays = nostrRelays
         self.mints = mints
+        self.mintPreferred = mintPreferred
     }
 
     
@@ -11002,7 +12000,8 @@ public struct FfiConverterTypeCreateRequestParams: FfiConverterRustBuffer {
                 transport: FfiConverterString.read(from: &buf), 
                 httpUrl: FfiConverterOptionString.read(from: &buf), 
                 nostrRelays: FfiConverterOptionSequenceString.read(from: &buf), 
-                mints: FfiConverterOptionSequenceString.read(from: &buf)
+                mints: FfiConverterOptionSequenceString.read(from: &buf), 
+                mintPreferred: FfiConverterOptionBool.read(from: &buf)
         )
     }
 
@@ -11018,6 +12017,7 @@ public struct FfiConverterTypeCreateRequestParams: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.httpUrl, into: &buf)
         FfiConverterOptionSequenceString.write(value.nostrRelays, into: &buf)
         FfiConverterOptionSequenceString.write(value.mints, into: &buf)
+        FfiConverterOptionBool.write(value.mintPreferred, into: &buf)
     }
 }
 
@@ -11104,6 +12104,83 @@ public func FfiConverterTypeCreateRequestResult_lift(_ buf: RustBuffer) throws -
 #endif
 public func FfiConverterTypeCreateRequestResult_lower(_ value: CreateRequestResult) -> RustBuffer {
     return FfiConverterTypeCreateRequestResult.lower(value)
+}
+
+
+/**
+ * FFI-compatible quote for a maximum cross-mint Lightning transfer.
+ */
+public struct CrossMintTransferQuote: Equatable, Hashable, Codable {
+    /**
+     * Quote used to receive the Lightning payment at the destination mint.
+     */
+    public let mintQuote: MintQuote
+    /**
+     * Quote used to pay the destination invoice from the source mint.
+     */
+    public let meltQuote: MeltQuote
+    /**
+     * Input fee for spending all currently unspent source proofs.
+     */
+    public let inputFee: Amount
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Quote used to receive the Lightning payment at the destination mint.
+         */mintQuote: MintQuote, 
+        /**
+         * Quote used to pay the destination invoice from the source mint.
+         */meltQuote: MeltQuote, 
+        /**
+         * Input fee for spending all currently unspent source proofs.
+         */inputFee: Amount) {
+        self.mintQuote = mintQuote
+        self.meltQuote = meltQuote
+        self.inputFee = inputFee
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension CrossMintTransferQuote: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCrossMintTransferQuote: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CrossMintTransferQuote {
+        return
+            try CrossMintTransferQuote(
+                mintQuote: FfiConverterTypeMintQuote.read(from: &buf), 
+                meltQuote: FfiConverterTypeMeltQuote.read(from: &buf), 
+                inputFee: FfiConverterTypeAmount.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CrossMintTransferQuote, into buf: inout [UInt8]) {
+        FfiConverterTypeMintQuote.write(value.mintQuote, into: &buf)
+        FfiConverterTypeMeltQuote.write(value.meltQuote, into: &buf)
+        FfiConverterTypeAmount.write(value.inputFee, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCrossMintTransferQuote_lift(_ buf: RustBuffer) throws -> CrossMintTransferQuote {
+    return try FfiConverterTypeCrossMintTransferQuote.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCrossMintTransferQuote_lower(_ value: CrossMintTransferQuote) -> RustBuffer {
+    return FfiConverterTypeCrossMintTransferQuote.lower(value)
 }
 
 
@@ -11681,6 +12758,13 @@ public func FfiConverterTypeMeltConfirmOptions_lower(_ value: MeltConfirmOptions
 public struct MeltMethodSettings: Equatable, Hashable, Codable {
     public let method: PaymentMethod
     public let unit: CurrencyUnit
+    /**
+     * Human-readable name for the payment method.
+     *
+     * If null or omitted, wallets should derive it from `method` by replacing
+     * `_` and `-` with spaces and title-casing each word.
+     */
+    public let methodName: String?
     public let minAmount: Amount?
     public let maxAmount: Amount?
     /**
@@ -11690,12 +12774,19 @@ public struct MeltMethodSettings: Equatable, Hashable, Codable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(method: PaymentMethod, unit: CurrencyUnit, minAmount: Amount?, maxAmount: Amount?, 
+    public init(method: PaymentMethod, unit: CurrencyUnit, 
+        /**
+         * Human-readable name for the payment method.
+         *
+         * If null or omitted, wallets should derive it from `method` by replacing
+         * `_` and `-` with spaces and title-casing each word.
+         */methodName: String?, minAmount: Amount?, maxAmount: Amount?, 
         /**
          * For bolt11, whether mint supports amountless invoices
          */amountless: Bool?) {
         self.method = method
         self.unit = unit
+        self.methodName = methodName
         self.minAmount = minAmount
         self.maxAmount = maxAmount
         self.amountless = amountless
@@ -11717,6 +12808,7 @@ public struct FfiConverterTypeMeltMethodSettings: FfiConverterRustBuffer {
             try MeltMethodSettings(
                 method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 unit: FfiConverterTypeCurrencyUnit.read(from: &buf), 
+                methodName: FfiConverterOptionString.read(from: &buf), 
                 minAmount: FfiConverterOptionTypeAmount.read(from: &buf), 
                 maxAmount: FfiConverterOptionTypeAmount.read(from: &buf), 
                 amountless: FfiConverterOptionBool.read(from: &buf)
@@ -11726,6 +12818,7 @@ public struct FfiConverterTypeMeltMethodSettings: FfiConverterRustBuffer {
     public static func write(_ value: MeltMethodSettings, into buf: inout [UInt8]) {
         FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterTypeCurrencyUnit.write(value.unit, into: &buf)
+        FfiConverterOptionString.write(value.methodName, into: &buf)
         FfiConverterOptionTypeAmount.write(value.minAmount, into: &buf)
         FfiConverterOptionTypeAmount.write(value.maxAmount, into: &buf)
         FfiConverterOptionBool.write(value.amountless, into: &buf)
@@ -11944,6 +13037,10 @@ public struct MeltQuoteBolt11Response: Equatable, Hashable, Codable {
      */
     public let quote: String
     /**
+     * Payment method
+     */
+    public let method: PaymentMethod
+    /**
      * Amount
      */
     public let amount: Amount
@@ -11979,6 +13076,9 @@ public struct MeltQuoteBolt11Response: Equatable, Hashable, Codable {
          * Quote ID
          */quote: String, 
         /**
+         * Payment method
+         */method: PaymentMethod, 
+        /**
          * Amount
          */amount: Amount, 
         /**
@@ -12000,6 +13100,7 @@ public struct MeltQuoteBolt11Response: Equatable, Hashable, Codable {
          * Unit (optional)
          */unit: CurrencyUnit?) {
         self.quote = quote
+        self.method = method
         self.amount = amount
         self.feeReserve = feeReserve
         self.state = state
@@ -12024,6 +13125,7 @@ public struct FfiConverterTypeMeltQuoteBolt11Response: FfiConverterRustBuffer {
         return
             try MeltQuoteBolt11Response(
                 quote: FfiConverterString.read(from: &buf), 
+                method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 amount: FfiConverterTypeAmount.read(from: &buf), 
                 feeReserve: FfiConverterTypeAmount.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
@@ -12036,6 +13138,7 @@ public struct FfiConverterTypeMeltQuoteBolt11Response: FfiConverterRustBuffer {
 
     public static func write(_ value: MeltQuoteBolt11Response, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterTypeAmount.write(value.amount, into: &buf)
         FfiConverterTypeAmount.write(value.feeReserve, into: &buf)
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
@@ -12073,6 +13176,10 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
      * Quote ID
      */
     public let quote: String
+    /**
+     * Payment method
+     */
+    public let method: PaymentMethod
     /**
      * Amount
      */
@@ -12116,6 +13223,9 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
          * Quote ID
          */quote: String, 
         /**
+         * Payment method
+         */method: PaymentMethod, 
+        /**
          * Amount
          */amount: Amount, 
         /**
@@ -12143,6 +13253,7 @@ public struct MeltQuoteCustomResponse: Equatable, Hashable, Codable {
          * custom payment methods to include additional data without nesting.
          */extra: String?) {
         self.quote = quote
+        self.method = method
         self.amount = amount
         self.feeReserve = feeReserve
         self.state = state
@@ -12168,6 +13279,7 @@ public struct FfiConverterTypeMeltQuoteCustomResponse: FfiConverterRustBuffer {
         return
             try MeltQuoteCustomResponse(
                 quote: FfiConverterString.read(from: &buf), 
+                method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 amount: FfiConverterTypeAmount.read(from: &buf), 
                 feeReserve: FfiConverterOptionTypeAmount.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
@@ -12181,6 +13293,7 @@ public struct FfiConverterTypeMeltQuoteCustomResponse: FfiConverterRustBuffer {
 
     public static func write(_ value: MeltQuoteCustomResponse, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterTypeAmount.write(value.amount, into: &buf)
         FfiConverterOptionTypeAmount.write(value.feeReserve, into: &buf)
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
@@ -12294,6 +13407,10 @@ public struct MeltQuoteOnchainResponse: Equatable, Hashable, Codable {
      */
     public let quote: String
     /**
+     * Payment method
+     */
+    public let method: PaymentMethod
+    /**
      * Amount being paid to the onchain address
      */
     public let amount: Amount
@@ -12337,6 +13454,9 @@ public struct MeltQuoteOnchainResponse: Equatable, Hashable, Codable {
          * Quote ID
          */quote: String, 
         /**
+         * Payment method
+         */method: PaymentMethod, 
+        /**
          * Amount being paid to the onchain address
          */amount: Amount, 
         /**
@@ -12364,6 +13484,7 @@ public struct MeltQuoteOnchainResponse: Equatable, Hashable, Codable {
          * Change blind signatures as JSON, when the mint returns change
          */change: String?) {
         self.quote = quote
+        self.method = method
         self.amount = amount
         self.unit = unit
         self.state = state
@@ -12390,6 +13511,7 @@ public struct FfiConverterTypeMeltQuoteOnchainResponse: FfiConverterRustBuffer {
         return
             try MeltQuoteOnchainResponse(
                 quote: FfiConverterString.read(from: &buf), 
+                method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 amount: FfiConverterTypeAmount.read(from: &buf), 
                 unit: FfiConverterTypeCurrencyUnit.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
@@ -12404,6 +13526,7 @@ public struct FfiConverterTypeMeltQuoteOnchainResponse: FfiConverterRustBuffer {
 
     public static func write(_ value: MeltQuoteOnchainResponse, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterTypeAmount.write(value.amount, into: &buf)
         FfiConverterTypeCurrencyUnit.write(value.unit, into: &buf)
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
@@ -12672,6 +13795,13 @@ public func FfiConverterTypeMintInfo_lower(_ value: MintInfo) -> RustBuffer {
 public struct MintMethodSettings: Equatable, Hashable, Codable {
     public let method: PaymentMethod
     public let unit: CurrencyUnit
+    /**
+     * Human-readable name for the payment method.
+     *
+     * If null or omitted, wallets should derive it from `method` by replacing
+     * `_` and `-` with spaces and title-casing each word.
+     */
+    public let methodName: String?
     public let minAmount: Amount?
     public let maxAmount: Amount?
     /**
@@ -12681,12 +13811,19 @@ public struct MintMethodSettings: Equatable, Hashable, Codable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(method: PaymentMethod, unit: CurrencyUnit, minAmount: Amount?, maxAmount: Amount?, 
+    public init(method: PaymentMethod, unit: CurrencyUnit, 
+        /**
+         * Human-readable name for the payment method.
+         *
+         * If null or omitted, wallets should derive it from `method` by replacing
+         * `_` and `-` with spaces and title-casing each word.
+         */methodName: String?, minAmount: Amount?, maxAmount: Amount?, 
         /**
          * For bolt11, whether mint supports setting invoice description
          */description: Bool?) {
         self.method = method
         self.unit = unit
+        self.methodName = methodName
         self.minAmount = minAmount
         self.maxAmount = maxAmount
         self.description = description
@@ -12708,6 +13845,7 @@ public struct FfiConverterTypeMintMethodSettings: FfiConverterRustBuffer {
             try MintMethodSettings(
                 method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 unit: FfiConverterTypeCurrencyUnit.read(from: &buf), 
+                methodName: FfiConverterOptionString.read(from: &buf), 
                 minAmount: FfiConverterOptionTypeAmount.read(from: &buf), 
                 maxAmount: FfiConverterOptionTypeAmount.read(from: &buf), 
                 description: FfiConverterOptionBool.read(from: &buf)
@@ -12717,6 +13855,7 @@ public struct FfiConverterTypeMintMethodSettings: FfiConverterRustBuffer {
     public static func write(_ value: MintMethodSettings, into buf: inout [UInt8]) {
         FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterTypeCurrencyUnit.write(value.unit, into: &buf)
+        FfiConverterOptionString.write(value.methodName, into: &buf)
         FfiConverterOptionTypeAmount.write(value.minAmount, into: &buf)
         FfiConverterOptionTypeAmount.write(value.maxAmount, into: &buf)
         FfiConverterOptionBool.write(value.description, into: &buf)
@@ -12783,6 +13922,10 @@ public struct MintQuote: Equatable, Hashable, Codable {
      */
     public let amountPaid: Amount
     /**
+     * Last update timestamp
+     */
+    public let updatedAt: UInt64
+    /**
      * Estimated confirmation target in blocks for onchain quotes
      */
     public let estimatedBlocks: UInt32?
@@ -12837,6 +13980,9 @@ public struct MintQuote: Equatable, Hashable, Codable {
          * Amount paid
          */amountPaid: Amount, 
         /**
+         * Last update timestamp
+         */updatedAt: UInt64, 
+        /**
          * Estimated confirmation target in blocks for onchain quotes
          */estimatedBlocks: UInt32?, 
         /**
@@ -12860,6 +14006,7 @@ public struct MintQuote: Equatable, Hashable, Codable {
         self.mintUrl = mintUrl
         self.amountIssued = amountIssued
         self.amountPaid = amountPaid
+        self.updatedAt = updatedAt
         self.estimatedBlocks = estimatedBlocks
         self.paymentMethod = paymentMethod
         self.secretKey = secretKey
@@ -12890,6 +14037,7 @@ public struct FfiConverterTypeMintQuote: FfiConverterRustBuffer {
                 mintUrl: FfiConverterTypeMintUrl.read(from: &buf), 
                 amountIssued: FfiConverterTypeAmount.read(from: &buf), 
                 amountPaid: FfiConverterTypeAmount.read(from: &buf), 
+                updatedAt: FfiConverterUInt64.read(from: &buf), 
                 estimatedBlocks: FfiConverterOptionUInt32.read(from: &buf), 
                 paymentMethod: FfiConverterTypePaymentMethod.read(from: &buf), 
                 secretKey: FfiConverterOptionString.read(from: &buf), 
@@ -12908,6 +14056,7 @@ public struct FfiConverterTypeMintQuote: FfiConverterRustBuffer {
         FfiConverterTypeMintUrl.write(value.mintUrl, into: &buf)
         FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
         FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
+        FfiConverterUInt64.write(value.updatedAt, into: &buf)
         FfiConverterOptionUInt32.write(value.estimatedBlocks, into: &buf)
         FfiConverterTypePaymentMethod.write(value.paymentMethod, into: &buf)
         FfiConverterOptionString.write(value.secretKey, into: &buf)
@@ -12945,6 +14094,10 @@ public struct MintQuoteBolt11Response: Equatable, Hashable, Codable {
      */
     public let request: String
     /**
+     * Payment method
+     */
+    public let method: PaymentMethod
+    /**
      * State of the quote
      */
     public let state: QuoteState
@@ -12961,6 +14114,18 @@ public struct MintQuoteBolt11Response: Equatable, Hashable, Codable {
      */
     public let unit: CurrencyUnit?
     /**
+     * Amount paid
+     */
+    public let amountPaid: Amount
+    /**
+     * Amount issued
+     */
+    public let amountIssued: Amount
+    /**
+     * Last update timestamp
+     */
+    public let updatedAt: UInt64
+    /**
      * Pubkey (optional)
      */
     public let pubkey: String?
@@ -12975,6 +14140,9 @@ public struct MintQuoteBolt11Response: Equatable, Hashable, Codable {
          * Request string
          */request: String, 
         /**
+         * Payment method
+         */method: PaymentMethod, 
+        /**
          * State of the quote
          */state: QuoteState, 
         /**
@@ -12987,14 +14155,27 @@ public struct MintQuoteBolt11Response: Equatable, Hashable, Codable {
          * Unit (optional)
          */unit: CurrencyUnit?, 
         /**
+         * Amount paid
+         */amountPaid: Amount, 
+        /**
+         * Amount issued
+         */amountIssued: Amount, 
+        /**
+         * Last update timestamp
+         */updatedAt: UInt64, 
+        /**
          * Pubkey (optional)
          */pubkey: String?) {
         self.quote = quote
         self.request = request
+        self.method = method
         self.state = state
         self.expiry = expiry
         self.amount = amount
         self.unit = unit
+        self.amountPaid = amountPaid
+        self.amountIssued = amountIssued
+        self.updatedAt = updatedAt
         self.pubkey = pubkey
     }
 
@@ -13014,10 +14195,14 @@ public struct FfiConverterTypeMintQuoteBolt11Response: FfiConverterRustBuffer {
             try MintQuoteBolt11Response(
                 quote: FfiConverterString.read(from: &buf), 
                 request: FfiConverterString.read(from: &buf), 
+                method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 state: FfiConverterTypeQuoteState.read(from: &buf), 
                 expiry: FfiConverterOptionUInt64.read(from: &buf), 
                 amount: FfiConverterOptionTypeAmount.read(from: &buf), 
                 unit: FfiConverterOptionTypeCurrencyUnit.read(from: &buf), 
+                amountPaid: FfiConverterTypeAmount.read(from: &buf), 
+                amountIssued: FfiConverterTypeAmount.read(from: &buf), 
+                updatedAt: FfiConverterUInt64.read(from: &buf), 
                 pubkey: FfiConverterOptionString.read(from: &buf)
         )
     }
@@ -13025,10 +14210,14 @@ public struct FfiConverterTypeMintQuoteBolt11Response: FfiConverterRustBuffer {
     public static func write(_ value: MintQuoteBolt11Response, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
         FfiConverterString.write(value.request, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterTypeQuoteState.write(value.state, into: &buf)
         FfiConverterOptionUInt64.write(value.expiry, into: &buf)
         FfiConverterOptionTypeAmount.write(value.amount, into: &buf)
         FfiConverterOptionTypeCurrencyUnit.write(value.unit, into: &buf)
+        FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
+        FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
+        FfiConverterUInt64.write(value.updatedAt, into: &buf)
         FfiConverterOptionString.write(value.pubkey, into: &buf)
     }
 }
@@ -13065,6 +14254,10 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
      */
     public let request: String
     /**
+     * Payment method
+     */
+    public let method: PaymentMethod
+    /**
      * Expiry timestamp (optional)
      */
     public let expiry: UInt64?
@@ -13080,6 +14273,10 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
      * Amount issued
      */
     public let amountIssued: Amount
+    /**
+     * Last update timestamp
+     */
+    public let updatedAt: UInt64
     /**
      * Unit (optional)
      */
@@ -13106,6 +14303,9 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
          * Request string
          */request: String, 
         /**
+         * Payment method
+         */method: PaymentMethod, 
+        /**
          * Expiry timestamp (optional)
          */expiry: UInt64?, 
         /**
@@ -13117,6 +14317,9 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
         /**
          * Amount issued
          */amountIssued: Amount, 
+        /**
+         * Last update timestamp
+         */updatedAt: UInt64, 
         /**
          * Unit (optional)
          */unit: CurrencyUnit?, 
@@ -13131,10 +14334,12 @@ public struct MintQuoteCustomResponse: Equatable, Hashable, Codable {
          */extra: String?) {
         self.quote = quote
         self.request = request
+        self.method = method
         self.expiry = expiry
         self.amount = amount
         self.amountPaid = amountPaid
         self.amountIssued = amountIssued
+        self.updatedAt = updatedAt
         self.unit = unit
         self.pubkey = pubkey
         self.extra = extra
@@ -13156,10 +14361,12 @@ public struct FfiConverterTypeMintQuoteCustomResponse: FfiConverterRustBuffer {
             try MintQuoteCustomResponse(
                 quote: FfiConverterString.read(from: &buf), 
                 request: FfiConverterString.read(from: &buf), 
+                method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 expiry: FfiConverterOptionUInt64.read(from: &buf), 
                 amount: FfiConverterOptionTypeAmount.read(from: &buf), 
                 amountPaid: FfiConverterTypeAmount.read(from: &buf), 
                 amountIssued: FfiConverterTypeAmount.read(from: &buf), 
+                updatedAt: FfiConverterUInt64.read(from: &buf), 
                 unit: FfiConverterOptionTypeCurrencyUnit.read(from: &buf), 
                 pubkey: FfiConverterOptionString.read(from: &buf), 
                 extra: FfiConverterOptionString.read(from: &buf)
@@ -13169,10 +14376,12 @@ public struct FfiConverterTypeMintQuoteCustomResponse: FfiConverterRustBuffer {
     public static func write(_ value: MintQuoteCustomResponse, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
         FfiConverterString.write(value.request, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterOptionUInt64.write(value.expiry, into: &buf)
         FfiConverterOptionTypeAmount.write(value.amount, into: &buf)
         FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
         FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
+        FfiConverterUInt64.write(value.updatedAt, into: &buf)
         FfiConverterOptionTypeCurrencyUnit.write(value.unit, into: &buf)
         FfiConverterOptionString.write(value.pubkey, into: &buf)
         FfiConverterOptionString.write(value.extra, into: &buf)
@@ -13208,6 +14417,10 @@ public struct MintQuoteOnchainResponse: Equatable, Hashable, Codable {
      */
     public let request: String
     /**
+     * Payment method
+     */
+    public let method: PaymentMethod
+    /**
      * Unit
      */
     public let unit: CurrencyUnit
@@ -13227,6 +14440,10 @@ public struct MintQuoteOnchainResponse: Equatable, Hashable, Codable {
      * Amount already issued for this quote
      */
     public let amountIssued: Amount
+    /**
+     * Last update timestamp
+     */
+    public let updatedAt: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -13237,6 +14454,9 @@ public struct MintQuoteOnchainResponse: Equatable, Hashable, Codable {
         /**
          * Bitcoin address to pay
          */request: String, 
+        /**
+         * Payment method
+         */method: PaymentMethod, 
         /**
          * Unit
          */unit: CurrencyUnit, 
@@ -13251,14 +14471,19 @@ public struct MintQuoteOnchainResponse: Equatable, Hashable, Codable {
          */amountPaid: Amount, 
         /**
          * Amount already issued for this quote
-         */amountIssued: Amount) {
+         */amountIssued: Amount, 
+        /**
+         * Last update timestamp
+         */updatedAt: UInt64) {
         self.quote = quote
         self.request = request
+        self.method = method
         self.unit = unit
         self.expiry = expiry
         self.pubkey = pubkey
         self.amountPaid = amountPaid
         self.amountIssued = amountIssued
+        self.updatedAt = updatedAt
     }
 
     
@@ -13277,22 +14502,26 @@ public struct FfiConverterTypeMintQuoteOnchainResponse: FfiConverterRustBuffer {
             try MintQuoteOnchainResponse(
                 quote: FfiConverterString.read(from: &buf), 
                 request: FfiConverterString.read(from: &buf), 
+                method: FfiConverterTypePaymentMethod.read(from: &buf), 
                 unit: FfiConverterTypeCurrencyUnit.read(from: &buf), 
                 expiry: FfiConverterOptionUInt64.read(from: &buf), 
                 pubkey: FfiConverterString.read(from: &buf), 
                 amountPaid: FfiConverterTypeAmount.read(from: &buf), 
-                amountIssued: FfiConverterTypeAmount.read(from: &buf)
+                amountIssued: FfiConverterTypeAmount.read(from: &buf), 
+                updatedAt: FfiConverterUInt64.read(from: &buf)
         )
     }
 
     public static func write(_ value: MintQuoteOnchainResponse, into buf: inout [UInt8]) {
         FfiConverterString.write(value.quote, into: &buf)
         FfiConverterString.write(value.request, into: &buf)
+        FfiConverterTypePaymentMethod.write(value.method, into: &buf)
         FfiConverterTypeCurrencyUnit.write(value.unit, into: &buf)
         FfiConverterOptionUInt64.write(value.expiry, into: &buf)
         FfiConverterString.write(value.pubkey, into: &buf)
         FfiConverterTypeAmount.write(value.amountPaid, into: &buf)
         FfiConverterTypeAmount.write(value.amountIssued, into: &buf)
+        FfiConverterUInt64.write(value.updatedAt, into: &buf)
     }
 }
 
@@ -15584,6 +16813,73 @@ public func FfiConverterTypeSubscribeParams_lower(_ value: SubscribeParams) -> R
 
 
 /**
+ * Supported payment method for a NUT-18 payment request
+ */
+public struct SupportedMethod: Equatable, Hashable, Codable {
+    /**
+     * Payment method name, such as "bolt11", "bolt12", or "onchain"
+     */
+    public let method: String
+    /**
+     * Additional fee for payments from non-preferred mints
+     */
+    public let fee: Amount?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Payment method name, such as "bolt11", "bolt12", or "onchain"
+         */method: String, 
+        /**
+         * Additional fee for payments from non-preferred mints
+         */fee: Amount?) {
+        self.method = method
+        self.fee = fee
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension SupportedMethod: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSupportedMethod: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SupportedMethod {
+        return
+            try SupportedMethod(
+                method: FfiConverterString.read(from: &buf), 
+                fee: FfiConverterOptionTypeAmount.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SupportedMethod, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.method, into: &buf)
+        FfiConverterOptionTypeAmount.write(value.fee, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSupportedMethod_lift(_ buf: RustBuffer) throws -> SupportedMethod {
+    return try FfiConverterTypeSupportedMethod.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSupportedMethod_lower(_ value: SupportedMethod) -> RustBuffer {
+    return FfiConverterTypeSupportedMethod.lower(value)
+}
+
+
+/**
  * FFI-compatible SupportedSettings
  */
 public struct SupportedSettings: Equatable, Hashable, Codable {
@@ -15813,6 +17109,10 @@ public struct Transaction: Equatable, Hashable, Codable {
      * Saga ID if this transaction was part of a saga
      */
     public let sagaId: String?
+    /**
+     * Transaction status
+     */
+    public let status: TransactionStatus
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -15861,7 +17161,10 @@ public struct Transaction: Equatable, Hashable, Codable {
          */paymentMethod: PaymentMethod?, 
         /**
          * Saga ID if this transaction was part of a saga
-         */sagaId: String?) {
+         */sagaId: String?, 
+        /**
+         * Transaction status
+         */status: TransactionStatus) {
         self.id = id
         self.mintUrl = mintUrl
         self.direction = direction
@@ -15877,6 +17180,7 @@ public struct Transaction: Equatable, Hashable, Codable {
         self.paymentProof = paymentProof
         self.paymentMethod = paymentMethod
         self.sagaId = sagaId
+        self.status = status
     }
 
     
@@ -15907,7 +17211,8 @@ public struct FfiConverterTypeTransaction: FfiConverterRustBuffer {
                 paymentRequest: FfiConverterOptionString.read(from: &buf), 
                 paymentProof: FfiConverterOptionString.read(from: &buf), 
                 paymentMethod: FfiConverterOptionTypePaymentMethod.read(from: &buf), 
-                sagaId: FfiConverterOptionString.read(from: &buf)
+                sagaId: FfiConverterOptionString.read(from: &buf), 
+                status: FfiConverterTypeTransactionStatus.read(from: &buf)
         )
     }
 
@@ -15927,6 +17232,7 @@ public struct FfiConverterTypeTransaction: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.paymentProof, into: &buf)
         FfiConverterOptionTypePaymentMethod.write(value.paymentMethod, into: &buf)
         FfiConverterOptionString.write(value.sagaId, into: &buf)
+        FfiConverterTypeTransactionStatus.write(value.status, into: &buf)
     }
 }
 
@@ -16085,11 +17391,27 @@ public func FfiConverterTypeTransport_lower(_ value: Transport) -> RustBuffer {
  */
 public struct WalletConfig: Equatable, Hashable, Codable {
     public let targetProofCount: UInt32?
+    /**
+     * Client-side request pacing to start with. Omit it to keep the built-in
+     * default, which paces the wallet under a mint's per-minute request cap.
+     *
+     * `Disabled` builds the limiter but leaves it off, so a later
+     * [`Wallet::set_rate_limit`] can turn pacing back on.
+     */
+    public let rateLimit: RateLimit?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(targetProofCount: UInt32?) {
+    public init(targetProofCount: UInt32?, 
+        /**
+         * Client-side request pacing to start with. Omit it to keep the built-in
+         * default, which paces the wallet under a mint's per-minute request cap.
+         *
+         * `Disabled` builds the limiter but leaves it off, so a later
+         * [`Wallet::set_rate_limit`] can turn pacing back on.
+         */rateLimit: RateLimit? = nil) {
         self.targetProofCount = targetProofCount
+        self.rateLimit = rateLimit
     }
 
     
@@ -16106,12 +17428,14 @@ public struct FfiConverterTypeWalletConfig: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WalletConfig {
         return
             try WalletConfig(
-                targetProofCount: FfiConverterOptionUInt32.read(from: &buf)
+                targetProofCount: FfiConverterOptionUInt32.read(from: &buf), 
+                rateLimit: FfiConverterOptionTypeRateLimit.read(from: &buf)
         )
     }
 
     public static func write(_ value: WalletConfig, into buf: inout [UInt8]) {
         FfiConverterOptionUInt32.write(value.targetProofCount, into: &buf)
+        FfiConverterOptionTypeRateLimit.write(value.rateLimit, into: &buf)
     }
 }
 
@@ -16195,6 +17519,78 @@ public func FfiConverterTypeWalletKey_lift(_ buf: RustBuffer) throws -> WalletKe
 #endif
 public func FfiConverterTypeWalletKey_lower(_ value: WalletKey) -> RustBuffer {
     return FfiConverterTypeWalletKey.lower(value)
+}
+
+
+/**
+ * Configuration for creating a wallet repository.
+ *
+ * Rate limiting is a repository-wide setting: every wallet the repository
+ * hands out shares one limiter, so there is no per-wallet equivalent.
+ */
+public struct WalletRepositoryConfig: Equatable, Hashable, Codable {
+    /**
+     * Proxy used by every mint operation. Omit for a direct connection.
+     */
+    public let proxyUrl: String?
+    /**
+     * Client-side request pacing to start with. Omit it to keep the built-in
+     * default.
+     */
+    public let rateLimit: RateLimit?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Proxy used by every mint operation. Omit for a direct connection.
+         */proxyUrl: String? = nil, 
+        /**
+         * Client-side request pacing to start with. Omit it to keep the built-in
+         * default.
+         */rateLimit: RateLimit? = nil) {
+        self.proxyUrl = proxyUrl
+        self.rateLimit = rateLimit
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension WalletRepositoryConfig: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeWalletRepositoryConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WalletRepositoryConfig {
+        return
+            try WalletRepositoryConfig(
+                proxyUrl: FfiConverterOptionString.read(from: &buf), 
+                rateLimit: FfiConverterOptionTypeRateLimit.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: WalletRepositoryConfig, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.proxyUrl, into: &buf)
+        FfiConverterOptionTypeRateLimit.write(value.rateLimit, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWalletRepositoryConfig_lift(_ buf: RustBuffer) throws -> WalletRepositoryConfig {
+    return try FfiConverterTypeWalletRepositoryConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWalletRepositoryConfig_lower(_ value: WalletRepositoryConfig) -> RustBuffer {
+    return FfiConverterTypeWalletRepositoryConfig.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -16511,56 +17907,66 @@ public func FfiConverterTypeFfiError_lower(_ value: FfiError) -> RustBuffer {
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
- * FFI-compatible KeysetFilter
+ * Policy controlling how keysets are loaded
  */
 
-public enum KeysetFilter: Equatable, Hashable, Codable {
+public enum KeysetLoadPolicy: Equatable, Hashable, Codable {
     
     /**
-     * Only return active keysets
+     * Use in-memory cache and local database only. Never contacts the network.
      */
-    case active
+    case cacheOnly
     /**
-     * Return all keysets (active and inactive)
+     * Check cache first (respects TTL). Falls back to database, then network.
      */
-    case all
+    case cacheThenNetwork
+    /**
+     * Always fetch fresh data from the mint over the network.
+     */
+    case refresh
 
 
 
 }
 
 #if compiler(>=6)
-extension KeysetFilter: Sendable {}
+extension KeysetLoadPolicy: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeKeysetFilter: FfiConverterRustBuffer {
-    typealias SwiftType = KeysetFilter
+public struct FfiConverterTypeKeysetLoadPolicy: FfiConverterRustBuffer {
+    typealias SwiftType = KeysetLoadPolicy
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> KeysetFilter {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> KeysetLoadPolicy {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .active
+        case 1: return .cacheOnly
         
-        case 2: return .all
+        case 2: return .cacheThenNetwork
+        
+        case 3: return .refresh
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
-    public static func write(_ value: KeysetFilter, into buf: inout [UInt8]) {
+    public static func write(_ value: KeysetLoadPolicy, into buf: inout [UInt8]) {
         switch value {
         
         
-        case .active:
+        case .cacheOnly:
             writeInt(&buf, Int32(1))
         
         
-        case .all:
+        case .cacheThenNetwork:
             writeInt(&buf, Int32(2))
+        
+        
+        case .refresh:
+            writeInt(&buf, Int32(3))
         
         }
     }
@@ -16570,15 +17976,15 @@ public struct FfiConverterTypeKeysetFilter: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeKeysetFilter_lift(_ buf: RustBuffer) throws -> KeysetFilter {
-    return try FfiConverterTypeKeysetFilter.lift(buf)
+public func FfiConverterTypeKeysetLoadPolicy_lift(_ buf: RustBuffer) throws -> KeysetLoadPolicy {
+    return try FfiConverterTypeKeysetLoadPolicy.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeKeysetFilter_lower(_ value: KeysetFilter) -> RustBuffer {
-    return FfiConverterTypeKeysetFilter.lower(value)
+public func FfiConverterTypeKeysetLoadPolicy_lower(_ value: KeysetLoadPolicy) -> RustBuffer {
+    return FfiConverterTypeKeysetLoadPolicy.lower(value)
 }
 
 
@@ -17284,6 +18690,121 @@ public func FfiConverterTypeQuoteState_lower(_ value: QuoteState) -> RustBuffer 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Client-side request pacing for a wallet's mint traffic.
+ *
+ * A wallet starts with whatever [`WalletConfig::rate_limit`] selected, which
+ * defaults to the built-in pacing so it stays under a mint's per-minute request
+ * cap. Pass one of these to [`Wallet::set_rate_limit`] to change it on a live
+ * wallet.
+ *
+ * # Example
+ *
+ * ```ignore
+ * // Turn pacing off (e.g. a mint with no request cap).
+ * wallet.set_rate_limit(RateLimit::Disabled)?;
+ *
+ * // Restore the built-in default pacing.
+ * wallet.set_rate_limit(RateLimit::Default)?;
+ *
+ * // Allow a burst of 20 requests, refilling 60 per minute.
+ * wallet.set_rate_limit(RateLimit::Custom {
+ * capacity: 20,
+ * refill_per_minute: 60,
+ * })?;
+ * ```
+ */
+
+public enum RateLimit: Equatable, Hashable, Codable {
+    
+    /**
+     * Built-in default pacing (capacity 20, refill 20/min).
+     */
+    case `default`
+    /**
+     * No client-side pacing.
+     */
+    case disabled
+    /**
+     * Custom burst capacity and per-minute refill. Both must be non-zero.
+     */
+    case custom(
+        /**
+         * Maximum burst: requests allowed back-to-back before pacing kicks in.
+         */capacity: UInt32, 
+        /**
+         * Sustained rate: requests earned back per minute.
+         */refillPerMinute: UInt32
+    )
+
+
+
+}
+
+#if compiler(>=6)
+extension RateLimit: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRateLimit: FfiConverterRustBuffer {
+    typealias SwiftType = RateLimit
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RateLimit {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`default`
+        
+        case 2: return .disabled
+        
+        case 3: return .custom(capacity: try FfiConverterUInt32.read(from: &buf), refillPerMinute: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RateLimit, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`default`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .disabled:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .custom(capacity,refillPerMinute):
+            writeInt(&buf, Int32(3))
+            FfiConverterUInt32.write(capacity, into: &buf)
+            FfiConverterUInt32.write(refillPerMinute, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRateLimit_lift(_ buf: RustBuffer) throws -> RateLimit {
+    return try FfiConverterTypeRateLimit.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRateLimit_lower(_ value: RateLimit) -> RustBuffer {
+    return FfiConverterTypeRateLimit.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * FFI-compatible SendKind
  */
 
@@ -17766,6 +19287,90 @@ public func FfiConverterTypeTransactionDirection_lower(_ value: TransactionDirec
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * FFI-compatible transaction status.
+ */
+
+public enum TransactionStatus: Equatable, Hashable, Codable {
+    
+    /**
+     * The transaction is still in progress.
+     */
+    case pending
+    /**
+     * The transaction completed successfully.
+     */
+    case completed
+    /**
+     * The transaction failed or was revoked.
+     */
+    case failed
+
+
+
+}
+
+#if compiler(>=6)
+extension TransactionStatus: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTransactionStatus: FfiConverterRustBuffer {
+    typealias SwiftType = TransactionStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TransactionStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .pending
+        
+        case 2: return .completed
+        
+        case 3: return .failed
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: TransactionStatus, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .pending:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .completed:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .failed:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTransactionStatus_lift(_ buf: RustBuffer) throws -> TransactionStatus {
+    return try FfiConverterTypeTransactionStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTransactionStatus_lower(_ value: TransactionStatus) -> RustBuffer {
+    return FfiConverterTypeTransactionStatus.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Transport type for payment request delivery
  */
 
@@ -17906,6 +19511,13 @@ public func FfiConverterTypeWalletDbBackend_lower(_ value: WalletDbBackend) -> R
 /**
  * Unified wallet storage: either a built-in Rust backend or a custom
  * foreign-language implementation of the `WalletDatabase` callback interface.
+ *
+ * Wallet methods can write to this store from FFI calls that mint, receive,
+ * recover, subscribe, or check quote/proof state. Mobile host apps own platform
+ * lifecycle handling for the chosen backend: use a durable app-owned location,
+ * pause or cancel wallet work when backgrounding unless background storage
+ * activity is intended, and use platform facilities such as iOS
+ * `beginBackgroundTask` when writes must finish after a lifecycle transition.
  *
  * This is an enum rather than accepting `WalletDatabase` directly because UniFFI
  * does not support trait objects as constructor parameters — only callback interfaces
@@ -18209,6 +19821,30 @@ fileprivate struct FfiConverterOptionTypeNostrWaitInfo: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeNostrWaitInfo.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeToken: FfiConverterRustBuffer {
+    typealias SwiftType = Token?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeToken.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeToken.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -18601,6 +20237,30 @@ fileprivate struct FfiConverterOptionTypeCurrencyUnit: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeKeysetLoadPolicy: FfiConverterRustBuffer {
+    typealias SwiftType = KeysetLoadPolicy?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeKeysetLoadPolicy.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeKeysetLoadPolicy.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeMeltOptions: FfiConverterRustBuffer {
     typealias SwiftType = MeltOptions?
 
@@ -18665,6 +20325,30 @@ fileprivate struct FfiConverterOptionTypePaymentMethod: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypePaymentMethod.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeRateLimit: FfiConverterRustBuffer {
+    typealias SwiftType = RateLimit?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeRateLimit.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeRateLimit.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -19114,6 +20798,31 @@ fileprivate struct FfiConverterSequenceTypeFinalizedMelt: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeKeySet: FfiConverterRustBuffer {
+    typealias SwiftType = [KeySet]
+
+    public static func write(_ value: [KeySet], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeKeySet.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [KeySet] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [KeySet]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeKeySet.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeKeySetInfo: FfiConverterRustBuffer {
     typealias SwiftType = [KeySetInfo]
 
@@ -19481,6 +21190,31 @@ fileprivate struct FfiConverterSequenceTypeSecretKey: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeSecretKey.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeSupportedMethod: FfiConverterRustBuffer {
+    typealias SwiftType = [SupportedMethod]
+
+    public static func write(_ value: [SupportedMethod], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeSupportedMethod.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SupportedMethod] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [SupportedMethod]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeSupportedMethod.read(from: &buf))
         }
         return seq
     }
@@ -19922,6 +21656,10 @@ public func createWalletDb(backend: WalletDbBackend)throws  -> WalletDatabase  {
 }
 /**
  * Create a wallet store backed by a custom foreign-language database implementation.
+ *
+ * Wallet operations may later call write methods on the supplied database.
+ * Mobile hosts are responsible for making those callbacks lifecycle-safe and
+ * durable across app foreground/background transitions.
  */
 public func customWalletStore(db: WalletDatabase) -> WalletStore  {
     return try!  FfiConverterTypeWalletStore_lift(try! rustCall() {
@@ -20666,6 +22404,10 @@ public func resolveBip353PaymentInstruction(wallet: Wallet, address: String, net
 }
 /**
  * Create a SQLite-backed wallet store.
+ *
+ * Wallet operations may later write to this SQLite database. Mobile hosts are
+ * responsible for choosing a durable file path and coordinating background
+ * lifecycle transitions around wallet calls.
  */
 public func sqliteWalletStore(path: String) -> WalletStore  {
     return try!  FfiConverterTypeWalletStore_lift(try! rustCall() {
@@ -20709,7 +22451,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_func_create_wallet_db() != 38981) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_func_custom_wallet_store() != 6733) {
+    if (uniffi_cdk_ffi_checksum_func_custom_wallet_store() != 34973) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_decode_auth_proof() != 22357) {
@@ -20895,7 +22637,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_func_resolve_bip353_payment_instruction() != 39566) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_func_sqlite_wallet_store() != 53833) {
+    if (uniffi_cdk_ffi_checksum_func_sqlite_wallet_store() != 59270) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_func_transaction_matches_conditions() != 45503) {
@@ -20904,10 +22646,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_activesubscription_id() != 53295) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_activesubscription_recv() != 64493) {
+    if (uniffi_cdk_ffi_checksum_method_activesubscription_recv() != 1020) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_activesubscription_try_recv() != 8454) {
+    if (uniffi_cdk_ffi_checksum_method_activesubscription_try_recv() != 39356) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_nostrwaitinfo_mint_preferred() != 11066) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_nostrwaitinfo_mints() != 4177) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_nostrwaitinfo_pubkey() != 8372) {
@@ -20946,6 +22694,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_paymentrequest_description() != 30652) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_mint_preferred() != 18301) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_paymentrequest_mints() != 17730) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -20953,6 +22704,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_paymentrequest_single_use() != 17480) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_paymentrequest_supported_methods() != 2914) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_paymentrequest_to_bech32_string() != 10557) {
@@ -21099,22 +22853,55 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_token_unit() != 55723) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_token_ur_encoder() != 54523) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_token_value() != 22223) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurdecoder_complete() != 1656) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurdecoder_fragment_count() != 46834) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurdecoder_receive() != 26404) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurdecoder_resolved_fragment_count() != 50324) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurdecoder_token() != 34297) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurencoder_current_index() != 47175) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurencoder_fragment_count() != 40473) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurencoder_is_single_fragment() != 17184) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_tokenurencoder_next_part() != 49133) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_active_keyset() != 21888) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_calculate_fee() != 1751) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_check_all_pending_proofs() != 7291) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_check_all_pending_proofs() != 29982) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_check_melt_quote_status() != 42910) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_check_mint_quote() != 30988) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_check_mint_quote() != 13747) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_check_mint_quote_status() != 23664) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_check_mint_quote_status() != 4397) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_check_proofs_spent() != 31942) {
@@ -21123,19 +22910,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_check_send_status() != 48245) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_fetch_active_keyset() != 65487) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_cross_mint_transfer_quote_max() != 41141) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_info() != 41951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_quote() != 45745) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_quote() != 52100) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_finalize_pending_melts() != 37779) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_get_active_keyset() != 55608) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_flush_rate_limits() != 8300) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_get_keyset_count_fee() != 4726) {
@@ -21148,9 +22935,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_get_keyset_fees_by_id() != 51180) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_wallet_get_mint_keysets() != 35744) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_get_pending_sends() != 56442) {
@@ -21168,16 +22952,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_get_unspent_auth_proofs() != 31137) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_is_rate_limited() != 18806) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_keyset() != 20245) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_keysets() != 6059) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_list_transactions() != 20673) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_load_keyset_keys() != 26035) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_cdk_ffi_checksum_method_wallet_load_mint_info() != 12995) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_wallet_load_mint_keysets() != 32197) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_melt_bip353_quote() != 1058) {
@@ -21195,7 +22982,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_melt_quote() != 14346) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_mint() != 9725) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_mint() != 15825) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_mint_blind_auth() != 16547) {
@@ -21204,7 +22991,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_mint_quote() != 4487) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_mint_unified() != 4620) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_mint_unified() != 41106) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_mint_unissued_quotes() != 50549) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_mint_url() != 6804) {
@@ -21228,19 +23018,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_quote_onchain_melt_options() != 54895) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_receive() != 34397) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_receive() != 14004) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_receive_proofs() != 40857) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_receive_proofs() != 31628) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_recover_incomplete_sagas() != 24677) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_recover_incomplete_sagas() != 619) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_refresh_access_token() != 63251) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_cdk_ffi_checksum_method_wallet_refresh_keysets() != 60028) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_restore() != 15985) {
@@ -21264,13 +23051,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_set_metadata_cache_ttl() != 24324) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_set_rate_limit() != 59693) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_set_refresh_token() != 28616) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_subscribe() != 26376) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_subscribe() != 18414) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_subscribe_mint_quote_state() != 53478) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_subscribe_mint_quote_state() != 33402) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_swap() != 45250) {
@@ -21378,67 +23168,70 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_walletdatabase_increment_keyset_counter() != 1421) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_mint() != 8954) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_increment_derivation_counter() != 44160) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_mint() != 60799) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_mint() != 16094) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_mint_keysets() != 50868) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_mint() != 53917) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_mint_quote() != 5288) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_mint_keysets() != 52020) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_mint_quote() != 62196) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_mint_quote() != 16039) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_melt_quote() != 19664) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_mint_quote() != 13037) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_melt_quote() != 38833) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_melt_quote() != 53379) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_keys() != 38908) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_melt_quote() != 26890) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_keys() != 55749) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_keys() != 45970) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_saga() != 34821) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_remove_keys() != 20072) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_get_saga() != 16287) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_add_saga() != 14140) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_update_saga() != 63809) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_get_saga() != 36270) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_delete_saga() != 1761) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_update_saga() != 13131) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_get_incomplete_sagas() != 23744) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_delete_saga() != 17895) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_reserve_proofs() != 4538) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_get_incomplete_sagas() != 38480) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_release_proofs() != 5865) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_reserve_proofs() != 48472) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_get_reserved_proofs() != 50555) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_release_proofs() != 63052) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_reserve_melt_quote() != 30436) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_get_reserved_proofs() != 63318) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_release_melt_quote() != 30916) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_reserve_melt_quote() != 32706) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_reserve_mint_quote() != 44117) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_release_melt_quote() != 43239) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_walletdatabase_release_mint_quote() != 5426) {
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_reserve_mint_quote() != 44403) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_walletdatabase_release_mint_quote() != 10655) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_backup_mints() != 56268) {
@@ -21450,7 +23243,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_walletrepository_fetch_mint_backup() != 24968) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_walletrepository_flush_rate_limits() != 60820) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_get_balances() != 25632) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_walletrepository_get_or_create_wallet() != 32359) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_get_token_data() != 37831) {
@@ -21463,6 +23262,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_has_mint() != 64747) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_walletrepository_is_rate_limited() != 46384) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_mint_backup_public_key() != 19486) {
@@ -21478,6 +23280,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletrepository_set_metadata_cache_ttl_for_mint() != 23477) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_walletrepository_set_rate_limit() != 165) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletsqlitedatabase_add_keys() != 5879) {
@@ -21559,6 +23364,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletsqlitedatabase_get_unissued_mint_quotes() != 21540) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_walletsqlitedatabase_increment_derivation_counter() != 48532) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_walletsqlitedatabase_increment_keyset_counter() != 61780) {
@@ -21654,16 +23462,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_constructor_token_from_string() != 43724) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_constructor_wallet_new() != 18752) {
+    if (uniffi_cdk_ffi_checksum_constructor_tokenurdecoder_new() != 59837) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_constructor_wallet_new() != 21828) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new() != 35127) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new_with_config() != 44668) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_constructor_walletrepository_new_with_proxy() != 18844) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_constructor_walletsqlitedatabase_new() != 10235) {
+    if (uniffi_cdk_ffi_checksum_constructor_walletsqlitedatabase_new() != 57227) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_constructor_walletsqlitedatabase_new_in_memory() != 41747) {
