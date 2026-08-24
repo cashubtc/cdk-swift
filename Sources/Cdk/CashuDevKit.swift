@@ -441,6 +441,22 @@ fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt16: FfiConverterPrimitive {
+    typealias FfiType = UInt16
+    typealias SwiftType = UInt16
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt16 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -754,6 +770,421 @@ public func FfiConverterTypeActiveSubscription_lower(_ value: ActiveSubscription
 
 
 /**
+ * A standing NIP-17 inbox listener for a single Nostr identity
+ *
+ * Subscribes the given relays for gift wraps addressed to the identity's
+ * public key and delivers unwrapped rumors to a [`NostrInboxListener`].
+ */
+public protocol NostrInboxProtocol: AnyObject, Sendable {
+    
+    /**
+     * Public key of the inbox identity (hex-encoded, x-only)
+     */
+    func pubkey()  -> String
+    
+    /**
+     * Connect to the relays, activate the subscription and start delivering
+     * events to `listener` on a background task
+     *
+     * Returns once the subscription is active. Events are delivered until
+     * [`NostrInbox::stop`] is called.
+     *
+     * # Errors
+     *
+     * Returns an error if a relay cannot be added or the subscription cannot
+     * be created.
+     */
+    func start(listener: NostrInboxListener) async throws 
+    
+    /**
+     * Stop listening: cancels the background pump and disconnects from the
+     * relays
+     */
+    func stop() 
+    
+}
+/**
+ * A standing NIP-17 inbox listener for a single Nostr identity
+ *
+ * Subscribes the given relays for gift wraps addressed to the identity's
+ * public key and delivers unwrapped rumors to a [`NostrInboxListener`].
+ */
+open class NostrInbox: NostrInboxProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_cdk_ffi_fn_clone_nostrinbox(self.handle, $0) }
+    }
+    /**
+     * Create a new inbox listener
+     *
+     * # Arguments
+     *
+     * * `nostr_secret_key` - The identity's secret key (hex or bech32 `nsec`)
+     * * `relays` - Relay URLs (`ws://`/`wss://`) to subscribe; must be
+     * non-empty
+     * * `since` - Optional unix timestamp lower bound for the relay `since`
+     * filter. Because NIP-59 backdates gift wraps, pick a generous lookback
+     * window instead of "now".
+     *
+     * # Errors
+     *
+     * Returns an error if the secret key or a relay URL is invalid, or no
+     * relays are configured.
+     */
+public convenience init(nostrSecretKey: String, relays: [String], since: UInt64?)throws  {
+    let handle =
+        try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_constructor_nostrinbox_new(
+        FfiConverterString.lower(nostrSecretKey),
+        FfiConverterSequenceString.lower(relays),
+        FfiConverterOptionUInt64.lower(since),$0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        try! rustCall { uniffi_cdk_ffi_fn_free_nostrinbox(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Public key of the inbox identity (hex-encoded, x-only)
+     */
+open func pubkey() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_nostrinbox_pubkey(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Connect to the relays, activate the subscription and start delivering
+     * events to `listener` on a background task
+     *
+     * Returns once the subscription is active. Events are delivered until
+     * [`NostrInbox::stop`] is called.
+     *
+     * # Errors
+     *
+     * Returns an error if a relay cannot be added or the subscription cannot
+     * be created.
+     */
+open func start(listener: NostrInboxListener)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_nostrinbox_start(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeNostrInboxListener_lower(listener)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Stop listening: cancels the background pump and disconnects from the
+     * relays
+     */
+open func stop()  {try! rustCall() {
+    uniffi_cdk_ffi_fn_method_nostrinbox_stop(
+            self.uniffiCloneHandle(),$0
+    )
+}
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNostrInbox: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = NostrInbox
+
+    public static func lift(_ handle: UInt64) throws -> NostrInbox {
+        return NostrInbox(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: NostrInbox) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NostrInbox {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: NostrInbox, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrInbox_lift(_ handle: UInt64) throws -> NostrInbox {
+    return try FfiConverterTypeNostrInbox.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrInbox_lower(_ value: NostrInbox) -> UInt64 {
+    return FfiConverterTypeNostrInbox.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Callback interface for [`NostrInbox`] events
+ *
+ * Implementations must be non-blocking; hand expensive work (token claims,
+ * database writes) off to a separate task.
+ */
+public protocol NostrInboxListener: AnyObject, Sendable {
+    
+    /**
+     * Called once per successfully unwrapped gift wrap
+     */
+    func onEvent(event: NostrInboxEvent) 
+    
+}
+/**
+ * Callback interface for [`NostrInbox`] events
+ *
+ * Implementations must be non-blocking; hand expensive work (token claims,
+ * database writes) off to a separate task.
+ */
+open class NostrInboxListenerImpl: NostrInboxListener, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_cdk_ffi_fn_clone_nostrinboxlistener(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_cdk_ffi_fn_free_nostrinboxlistener(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Called once per successfully unwrapped gift wrap
+     */
+open func onEvent(event: NostrInboxEvent)  {try! rustCall() {
+    uniffi_cdk_ffi_fn_method_nostrinboxlistener_on_event(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeNostrInboxEvent_lower(event),$0
+    )
+}
+}
+    
+
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceNostrInboxListener {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // This creates 1-element array, since this seems to be the only way to construct a const
+    // pointer that we can pass to the Rust code.
+    static let vtable: [UniffiVTableCallbackInterfaceNostrInboxListener] = [UniffiVTableCallbackInterfaceNostrInboxListener(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterTypeNostrInboxListener.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface NostrInboxListener: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterTypeNostrInboxListener.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface NostrInboxListener: handle missing in uniffiClone")
+            }
+        },
+        onEvent: { (
+            uniffiHandle: UInt64,
+            event: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterTypeNostrInboxListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onEvent(
+                     event: try FfiConverterTypeNostrInboxEvent_lift(event)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        }
+    )]
+}
+
+private func uniffiCallbackInitNostrInboxListener() {
+    uniffi_cdk_ffi_fn_init_callback_vtable_nostrinboxlistener(UniffiCallbackInterfaceNostrInboxListener.vtable)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNostrInboxListener: FfiConverter {
+    fileprivate static let handleMap = UniffiHandleMap<NostrInboxListener>()
+
+    typealias FfiType = UInt64
+    typealias SwiftType = NostrInboxListener
+
+    public static func lift(_ handle: UInt64) throws -> NostrInboxListener {
+        if ((handle & 1) == 0) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return NostrInboxListenerImpl(unsafeFromHandle: handle)
+        } else {
+            // Swift-generated handle, get the object from the handle map
+            return try handleMap.remove(handle: handle)
+        }
+    }
+
+    public static func lower(_ value: NostrInboxListener) -> UInt64 {
+         if let rustImpl = value as? NostrInboxListenerImpl {
+             // Rust-implemented object.  Clone the handle and return it
+            return rustImpl.uniffiCloneHandle()
+         } else {
+            // Swift object, generate a new vtable handle and return that.
+            return handleMap.insert(obj: value)
+         }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NostrInboxListener {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: NostrInboxListener, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrInboxListener_lift(_ handle: UInt64) throws -> NostrInboxListener {
+    return try FfiConverterTypeNostrInboxListener.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrInboxListener_lower(_ value: NostrInboxListener) -> UInt64 {
+    return FfiConverterTypeNostrInboxListener.lower(value)
+}
+
+
+
+
+
+
+/**
  * Information needed to wait for an incoming Nostr payment
  *
  * Returned by `create_request` when the transport is `nostr`. Pass this to
@@ -941,6 +1372,23 @@ public func FfiConverterTypeNostrWaitInfo_lower(_ value: NostrWaitInfo) -> UInt6
 public protocol NpubCashClientProtocol: AnyObject, Sendable {
     
     /**
+     * Resolve full quote data for specific quote IDs
+     *
+     * Asks the NpubCash server for the quotes matching `quote_ids`. Used to
+     * reconcile local state with the server: fetch all quote IDs, determine
+     * which ones are unknown locally, and resolve only those.
+     *
+     * # Arguments
+     *
+     * * `quote_ids` - Quote IDs to resolve
+     *
+     * # Errors
+     *
+     * Returns an error if the API request fails or authentication fails
+     */
+    func getMissingQuotes(quoteIds: [String]) async throws  -> [NpubCashQuote]
+    
+    /**
      * Fetch quotes from NpubCash
      *
      * # Arguments
@@ -959,6 +1407,17 @@ public protocol NpubCashClientProtocol: AnyObject, Sendable {
     func getQuotes(since: UInt64?) async throws  -> [NpubCashQuote]
     
     /**
+     * Fetch the NpubCash account settings
+     *
+     * Returns the configured mint URL and whether quote locking is enabled.
+     *
+     * # Errors
+     *
+     * Returns an error if the API request fails or authentication fails
+     */
+    func getUserInfo() async throws  -> NpubCashUserResponse
+    
+    /**
      * Set the mint URL for the user on the NpubCash server
      *
      * Updates the default mint URL used by the NpubCash server when creating quotes.
@@ -972,6 +1431,26 @@ public protocol NpubCashClientProtocol: AnyObject, Sendable {
      * Returns an error if the API request fails or authentication fails
      */
     func setMintUrl(mintUrl: String) async throws  -> NpubCashUserResponse
+    
+    /**
+     * Enable or disable NUT-20 quote locking for this NpubCash account
+     *
+     * When enabled, the NpubCash server creates new mint quotes locked to the
+     * account's Nostr public key, so claiming them requires a NUT-20 quote
+     * signature from the matching secret key. The server rejects enabling
+     * locking when the configured mint does not support NUT-20.
+     *
+     * Already-created quotes keep their original lock state.
+     *
+     * # Arguments
+     *
+     * * `lock_quotes` - Whether new quotes should be locked to the npub
+     *
+     * # Errors
+     *
+     * Returns an error if the API request fails or authentication fails
+     */
+    func setQuoteLocking(lockQuotes: Bool) async throws  -> NpubCashUserResponse
     
 }
 /**
@@ -1052,6 +1531,38 @@ public convenience init(baseUrl: String, nostrSecretKey: String)throws  {
 
     
     /**
+     * Resolve full quote data for specific quote IDs
+     *
+     * Asks the NpubCash server for the quotes matching `quote_ids`. Used to
+     * reconcile local state with the server: fetch all quote IDs, determine
+     * which ones are unknown locally, and resolve only those.
+     *
+     * # Arguments
+     *
+     * * `quote_ids` - Quote IDs to resolve
+     *
+     * # Errors
+     *
+     * Returns an error if the API request fails or authentication fails
+     */
+open func getMissingQuotes(quoteIds: [String])async throws  -> [NpubCashQuote]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_npubcashclient_get_missing_quotes(
+                    self.uniffiCloneHandle(),
+                    FfiConverterSequenceString.lower(quoteIds)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeNpubCashQuote.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Fetch quotes from NpubCash
      *
      * # Arguments
@@ -1085,6 +1596,32 @@ open func getQuotes(since: UInt64?)async throws  -> [NpubCashQuote]  {
 }
     
     /**
+     * Fetch the NpubCash account settings
+     *
+     * Returns the configured mint URL and whether quote locking is enabled.
+     *
+     * # Errors
+     *
+     * Returns an error if the API request fails or authentication fails
+     */
+open func getUserInfo()async throws  -> NpubCashUserResponse  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_npubcashclient_get_user_info(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeNpubCashUserResponse_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Set the mint URL for the user on the NpubCash server
      *
      * Updates the default mint URL used by the NpubCash server when creating quotes.
@@ -1104,6 +1641,41 @@ open func setMintUrl(mintUrl: String)async throws  -> NpubCashUserResponse  {
                 uniffi_cdk_ffi_fn_method_npubcashclient_set_mint_url(
                     self.uniffiCloneHandle(),
                     FfiConverterString.lower(mintUrl)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeNpubCashUserResponse_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Enable or disable NUT-20 quote locking for this NpubCash account
+     *
+     * When enabled, the NpubCash server creates new mint quotes locked to the
+     * account's Nostr public key, so claiming them requires a NUT-20 quote
+     * signature from the matching secret key. The server rejects enabling
+     * locking when the configured mint does not support NUT-20.
+     *
+     * Already-created quotes keep their original lock state.
+     *
+     * # Arguments
+     *
+     * * `lock_quotes` - Whether new quotes should be locked to the npub
+     *
+     * # Errors
+     *
+     * Returns an error if the API request fails or authentication fails
+     */
+open func setQuoteLocking(lockQuotes: Bool)async throws  -> NpubCashUserResponse  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_npubcashclient_set_quote_locking(
+                    self.uniffiCloneHandle(),
+                    FfiConverterBool.lower(lockQuotes)
                 )
             },
             pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
@@ -2662,6 +3234,317 @@ public func FfiConverterTypePreparedMelt_lower(_ value: PreparedMelt) -> UInt64 
 
 
 /**
+ * FFI-compatible prepared NUT-18 payment request.
+ */
+public protocol PreparedPaymentRequestProtocol: AnyObject, Sendable {
+    
+    /**
+     * Cancel the prepared payment and release reserved proofs.
+     */
+    func cancel() async throws 
+    
+    /**
+     * Confirm and deliver the prepared payment.
+     *
+     * If delivery fails after token creation, this returns
+     * `FfiError::PaymentRequestDeliveryFailed` with the pending operation ID.
+     * Do not prepare the payment again. Call `Wallet.revoke_send(operation_id)`
+     * to reclaim it if it remains unclaimed.
+     */
+    func confirm() async throws 
+    
+    /**
+     * Total mint input fee.
+     */
+    func inputFee()  -> Amount
+    
+    /**
+     * Selected payment method, when restricted by the request.
+     */
+    func method()  -> String?
+    
+    /**
+     * Applicable receiver-selected method fee (`mf`).
+     */
+    func methodFee()  -> Amount
+    
+    /**
+     * Mint selected for the payment.
+     */
+    func mintUrl()  -> String
+    
+    /**
+     * Operation ID of the reserved send.
+     */
+    func operationId()  -> String
+    
+    /**
+     * Requested amount plus the applicable method fee.
+     */
+    func paymentAmount()  -> Amount
+    
+    /**
+     * Amount requested before the receiver-selected method fee.
+     */
+    func requestedAmount()  -> Amount
+    
+    /**
+     * Total wallet debit.
+     */
+    func totalAmount()  -> Amount
+    
+    /**
+     * Currency unit of the payment.
+     */
+    func unit()  -> CurrencyUnit
+    
+}
+/**
+ * FFI-compatible prepared NUT-18 payment request.
+ */
+open class PreparedPaymentRequest: PreparedPaymentRequestProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_cdk_ffi_fn_clone_preparedpaymentrequest(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_cdk_ffi_fn_free_preparedpaymentrequest(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Cancel the prepared payment and release reserved proofs.
+     */
+open func cancel()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_preparedpaymentrequest_cancel(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Confirm and deliver the prepared payment.
+     *
+     * If delivery fails after token creation, this returns
+     * `FfiError::PaymentRequestDeliveryFailed` with the pending operation ID.
+     * Do not prepare the payment again. Call `Wallet.revoke_send(operation_id)`
+     * to reclaim it if it remains unclaimed.
+     */
+open func confirm()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_preparedpaymentrequest_confirm(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Total mint input fee.
+     */
+open func inputFee() -> Amount  {
+    return try!  FfiConverterTypeAmount_lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_input_fee(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Selected payment method, when restricted by the request.
+     */
+open func method() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_method(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Applicable receiver-selected method fee (`mf`).
+     */
+open func methodFee() -> Amount  {
+    return try!  FfiConverterTypeAmount_lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_method_fee(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Mint selected for the payment.
+     */
+open func mintUrl() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_mint_url(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Operation ID of the reserved send.
+     */
+open func operationId() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_operation_id(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Requested amount plus the applicable method fee.
+     */
+open func paymentAmount() -> Amount  {
+    return try!  FfiConverterTypeAmount_lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_payment_amount(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Amount requested before the receiver-selected method fee.
+     */
+open func requestedAmount() -> Amount  {
+    return try!  FfiConverterTypeAmount_lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_requested_amount(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Total wallet debit.
+     */
+open func totalAmount() -> Amount  {
+    return try!  FfiConverterTypeAmount_lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_total_amount(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Currency unit of the payment.
+     */
+open func unit() -> CurrencyUnit  {
+    return try!  FfiConverterTypeCurrencyUnit_lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_method_preparedpaymentrequest_unit(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePreparedPaymentRequest: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = PreparedPaymentRequest
+
+    public static func lift(_ handle: UInt64) throws -> PreparedPaymentRequest {
+        return PreparedPaymentRequest(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: PreparedPaymentRequest) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PreparedPaymentRequest {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: PreparedPaymentRequest, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePreparedPaymentRequest_lift(_ handle: UInt64) throws -> PreparedPaymentRequest {
+    return try FfiConverterTypePreparedPaymentRequest.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePreparedPaymentRequest_lower(_ value: PreparedPaymentRequest) -> UInt64 {
+    return FfiConverterTypePreparedPaymentRequest.lower(value)
+}
+
+
+
+
+
+
+/**
  * FFI-compatible PreparedSend
  *
  * This wraps the data from a prepared send operation along with a reference
@@ -3765,6 +4648,21 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func checkSendStatus(operationId: String) async throws  -> Bool
     
     /**
+     * Claim all pending NpubCash quotes
+     *
+     * Syncs quotes from the NpubCash server (including reconciliation of
+     * quotes missing locally) and mints every paid NpubCash quote that has
+     * not been issued yet. Only quotes attributable to the wallet's NpubCash
+     * accounts are claimed; unrelated mint quotes created through normal
+     * wallet flows are left untouched. Mints that advertise NUT-29 are
+     * claimed with batch minting automatically; other mints fall back to
+     * individual minting.
+     *
+     * Returns the total amount minted across all claimed quotes.
+     */
+    func claimNpubcashQuotes() async throws  -> Amount
+    
+    /**
      * Create quotes for transferring the maximum amount allowed by the source
      * balance and both mints' advertised BOLT11 limits.
      *
@@ -3777,6 +4675,19 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * cancelled and remain until they expire.
      */
     func crossMintTransferQuoteMax(targetWallet: Wallet) async throws  -> CrossMintTransferQuote
+    
+    /**
+     * Enable NpubCash integration for this wallet
+     *
+     * Derives the NpubCash Nostr keys from the wallet seed, creates the
+     * API client, sets this wallet's mint URL on the server, and enables
+     * NUT-20 quote locking for newly created quotes. The integration is
+     * only activated once locking has been enabled and confirmed.
+     *
+     * Returns an error if quote locking cannot be established — for
+     * example when the configured mint does not support NUT-20.
+     */
+    func enableNpubcash(npubcashUrl: String) async throws 
     
     /**
      * Get mint info from mint
@@ -3833,6 +4744,14 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Get fees for a specific keyset ID
      */
     func getKeysetFeesById(keysetId: String) async throws  -> UInt64
+    
+    /**
+     * Fetch this wallet's NpubCash account settings
+     *
+     * Returns the configured mint URL and whether quote locking is enabled.
+     * Requires NpubCash to be enabled on this wallet first.
+     */
+    func getNpubcashUserInfo() async throws  -> NpubCashUserResponse
     
     /**
      * Get all pending send operations
@@ -3995,19 +4914,6 @@ public protocol WalletProtocol: AnyObject, Sendable {
     func mintUrl()  -> MintUrl
     
     /**
-     * Pay a NUT-18 payment request
-     *
-     * This method prepares and sends a payment for the given payment request.
-     * It will use the Nostr or HTTP transport specified in the request.
-     *
-     * # Arguments
-     *
-     * * `payment_request` - The NUT-18 payment request to pay
-     * * `custom_amount` - Optional amount to pay (required if request has no amount)
-     */
-    func payRequest(paymentRequest: PaymentRequest, customAmount: Amount?) async throws 
-    
-    /**
      * Prepare a melt operation
      *
      * Returns a `PreparedMelt` that can be confirmed or cancelled.
@@ -4048,6 +4954,13 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * A `PreparedMelt` that can be confirmed or cancelled
      */
     func prepareMeltToken(quoteId: String, encodedToken: String) async throws  -> PreparedMelt
+    
+    /**
+     * Prepare a NUT-18 payment request so its method and input fees can be reviewed.
+     *
+     * Call `confirm` or `cancel` on the returned object to complete the flow.
+     */
+    func preparePayRequest(paymentRequest: PaymentRequest, customAmount: Amount?) async throws  -> PreparedPaymentRequest
     
     /**
      * Prepare a send operation
@@ -4205,6 +5118,21 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * Swap proofs
      */
     func swap(amount: Amount?, amountSplitTarget: SplitTarget, inputProofs: [Proof], spendingConditions: SpendingConditions?, includeFees: Bool) async throws  -> [Proof]?
+    
+    /**
+     * Reconcile the wallet with NpubCash by resolving quotes missing locally
+     *
+     * Fetches all quote IDs from the NpubCash server, resolves full data for
+     * quotes missing from the local store, and refreshes NUT-20 lock
+     * provenance for quotes already known locally. Unlike
+     * `claim_npubcash_quotes`, this does not mint anything; it only
+     * reconciles the local quote store with the server.
+     *
+     * Returns the quotes that were missing locally and have now been added.
+     *
+     * Requires NpubCash to be enabled on this wallet first.
+     */
+    func syncMissingNpubcashQuotes() async throws  -> [MintQuote]
     
     /**
      * Get total balance
@@ -4507,6 +5435,36 @@ open func checkSendStatus(operationId: String)async throws  -> Bool  {
 }
     
     /**
+     * Claim all pending NpubCash quotes
+     *
+     * Syncs quotes from the NpubCash server (including reconciliation of
+     * quotes missing locally) and mints every paid NpubCash quote that has
+     * not been issued yet. Only quotes attributable to the wallet's NpubCash
+     * accounts are claimed; unrelated mint quotes created through normal
+     * wallet flows are left untouched. Mints that advertise NUT-29 are
+     * claimed with batch minting automatically; other mints fall back to
+     * individual minting.
+     *
+     * Returns the total amount minted across all claimed quotes.
+     */
+open func claimNpubcashQuotes()async throws  -> Amount  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_claim_npubcash_quotes(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeAmount_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Create quotes for transferring the maximum amount allowed by the source
      * balance and both mints' advertised BOLT11 limits.
      *
@@ -4531,6 +5489,34 @@ open func crossMintTransferQuoteMax(targetWallet: Wallet)async throws  -> CrossM
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeCrossMintTransferQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Enable NpubCash integration for this wallet
+     *
+     * Derives the NpubCash Nostr keys from the wallet seed, creates the
+     * API client, sets this wallet's mint URL on the server, and enables
+     * NUT-20 quote locking for newly created quotes. The integration is
+     * only activated once locking has been enabled and confirmed.
+     *
+     * Returns an error if quote locking cannot be established — for
+     * example when the configured mint does not support NUT-20.
+     */
+open func enableNpubcash(npubcashUrl: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_enable_npubcash(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(npubcashUrl)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_cdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -4708,6 +5694,29 @@ open func getKeysetFeesById(keysetId: String)async throws  -> UInt64  {
             completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
             freeFunc: ffi_cdk_ffi_rust_future_free_u64,
             liftFunc: FfiConverterUInt64.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Fetch this wallet's NpubCash account settings
+     *
+     * Returns the configured mint URL and whether quote locking is enabled.
+     * Requires NpubCash to be enabled on this wallet first.
+     */
+open func getNpubcashUserInfo()async throws  -> NpubCashUserResponse  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_get_npubcash_user_info(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeNpubCashUserResponse_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -5170,34 +6179,6 @@ open func mintUrl() -> MintUrl  {
 }
     
     /**
-     * Pay a NUT-18 payment request
-     *
-     * This method prepares and sends a payment for the given payment request.
-     * It will use the Nostr or HTTP transport specified in the request.
-     *
-     * # Arguments
-     *
-     * * `payment_request` - The NUT-18 payment request to pay
-     * * `custom_amount` - Optional amount to pay (required if request has no amount)
-     */
-open func payRequest(paymentRequest: PaymentRequest, customAmount: Amount?)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_cdk_ffi_fn_method_wallet_pay_request(
-                    self.uniffiCloneHandle(),
-                    FfiConverterTypePaymentRequest_lower(paymentRequest),FfiConverterOptionTypeAmount.lower(customAmount)
-                )
-            },
-            pollFunc: ffi_cdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_cdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_cdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeFfiError_lift
-        )
-}
-    
-    /**
      * Prepare a melt operation
      *
      * Returns a `PreparedMelt` that can be confirmed or cancelled.
@@ -5280,6 +6261,28 @@ open func prepareMeltToken(quoteId: String, encodedToken: String)async throws  -
             completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
             freeFunc: ffi_cdk_ffi_rust_future_free_u64,
             liftFunc: FfiConverterTypePreparedMelt_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Prepare a NUT-18 payment request so its method and input fees can be reviewed.
+     *
+     * Call `confirm` or `cancel` on the returned object to complete the flow.
+     */
+open func preparePayRequest(paymentRequest: PaymentRequest, customAmount: Amount?)async throws  -> PreparedPaymentRequest  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_prepare_pay_request(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypePaymentRequest_lower(paymentRequest),FfiConverterOptionTypeAmount.lower(customAmount)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_u64,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_u64,
+            freeFunc: ffi_cdk_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypePreparedPaymentRequest_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -5689,6 +6692,36 @@ open func swap(amount: Amount?, amountSplitTarget: SplitTarget, inputProofs: [Pr
             completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionSequenceTypeProof.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Reconcile the wallet with NpubCash by resolving quotes missing locally
+     *
+     * Fetches all quote IDs from the NpubCash server, resolves full data for
+     * quotes missing from the local store, and refreshes NUT-20 lock
+     * provenance for quotes already known locally. Unlike
+     * `claim_npubcash_quotes`, this does not mint anything; it only
+     * reconciles the local quote store with the server.
+     *
+     * Returns the quotes that were missing locally and have now been added.
+     *
+     * Requires NpubCash to be enabled on this wallet first.
+     */
+open func syncMissingNpubcashQuotes()async throws  -> [MintQuote]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_sync_missing_npubcash_quotes(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeMintQuote.lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -11915,13 +12948,17 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
      */
     public let nostrRelays: [String]?
     /**
-     * Optional list of mint URLs the receiver trusts. If not provided, the wallet's current mints for the requested unit will be used.
+     * Optional list of mint URLs the receiver accepts or prefers; `None` emits no mint list
      */
     public let mints: [String]?
     /**
      * Whether the mint list is preferred rather than required
      */
     public let mintPreferred: Bool?
+    /**
+     * Payment methods the payer's mint must support, with optional per-method fees
+     */
+    public let supportedMethods: [SupportedMethod]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -11957,11 +12994,14 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
          * Nostr relay URLs (required if transport is "nostr")
          */nostrRelays: [String]?, 
         /**
-         * Optional list of mint URLs the receiver trusts. If not provided, the wallet's current mints for the requested unit will be used.
+         * Optional list of mint URLs the receiver accepts or prefers; `None` emits no mint list
          */mints: [String]?, 
         /**
          * Whether the mint list is preferred rather than required
-         */mintPreferred: Bool?) {
+         */mintPreferred: Bool?, 
+        /**
+         * Payment methods the payer's mint must support, with optional per-method fees
+         */supportedMethods: [SupportedMethod]) {
         self.amount = amount
         self.unit = unit
         self.description = description
@@ -11974,6 +13014,7 @@ public struct CreateRequestParams: Equatable, Hashable, Codable {
         self.nostrRelays = nostrRelays
         self.mints = mints
         self.mintPreferred = mintPreferred
+        self.supportedMethods = supportedMethods
     }
 
     
@@ -12001,7 +13042,8 @@ public struct FfiConverterTypeCreateRequestParams: FfiConverterRustBuffer {
                 httpUrl: FfiConverterOptionString.read(from: &buf), 
                 nostrRelays: FfiConverterOptionSequenceString.read(from: &buf), 
                 mints: FfiConverterOptionSequenceString.read(from: &buf), 
-                mintPreferred: FfiConverterOptionBool.read(from: &buf)
+                mintPreferred: FfiConverterOptionBool.read(from: &buf), 
+                supportedMethods: FfiConverterSequenceTypeSupportedMethod.read(from: &buf)
         )
     }
 
@@ -12018,6 +13060,7 @@ public struct FfiConverterTypeCreateRequestParams: FfiConverterRustBuffer {
         FfiConverterOptionSequenceString.write(value.nostrRelays, into: &buf)
         FfiConverterOptionSequenceString.write(value.mints, into: &buf)
         FfiConverterOptionBool.write(value.mintPreferred, into: &buf)
+        FfiConverterSequenceTypeSupportedMethod.write(value.supportedMethods, into: &buf)
     }
 }
 
@@ -13674,6 +14717,10 @@ public struct MintInfo: Equatable, Hashable, Codable {
      * terms of url service of the mint
      */
     public let tosUrl: String?
+    /**
+     * max length the mint accepts for any array in a request
+     */
+    public let maxArrayLength: UInt64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -13713,7 +14760,10 @@ public struct MintInfo: Equatable, Hashable, Codable {
          */time: UInt64?, 
         /**
          * terms of url service of the mint
-         */tosUrl: String?) {
+         */tosUrl: String?, 
+        /**
+         * max length the mint accepts for any array in a request
+         */maxArrayLength: UInt64?) {
         self.name = name
         self.pubkey = pubkey
         self.version = version
@@ -13726,6 +14776,7 @@ public struct MintInfo: Equatable, Hashable, Codable {
         self.motd = motd
         self.time = time
         self.tosUrl = tosUrl
+        self.maxArrayLength = maxArrayLength
     }
 
     
@@ -13753,7 +14804,8 @@ public struct FfiConverterTypeMintInfo: FfiConverterRustBuffer {
                 urls: FfiConverterOptionSequenceString.read(from: &buf), 
                 motd: FfiConverterOptionString.read(from: &buf), 
                 time: FfiConverterOptionUInt64.read(from: &buf), 
-                tosUrl: FfiConverterOptionString.read(from: &buf)
+                tosUrl: FfiConverterOptionString.read(from: &buf), 
+                maxArrayLength: FfiConverterOptionUInt64.read(from: &buf)
         )
     }
 
@@ -13770,6 +14822,7 @@ public struct FfiConverterTypeMintInfo: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.motd, into: &buf)
         FfiConverterOptionUInt64.write(value.time, into: &buf)
         FfiConverterOptionString.write(value.tosUrl, into: &buf)
+        FfiConverterOptionUInt64.write(value.maxArrayLength, into: &buf)
     }
 }
 
@@ -14723,6 +15776,139 @@ public func FfiConverterTypeNUT13Options_lift(_ buf: RustBuffer) throws -> Nut13
 #endif
 public func FfiConverterTypeNUT13Options_lower(_ value: Nut13Options) -> RustBuffer {
     return FfiConverterTypeNUT13Options.lower(value)
+}
+
+
+/**
+ * An unwrapped NIP-17 gift wrap received by a [`NostrInbox`]
+ *
+ * All IDs and keys are hex-encoded; timestamps are unix seconds.
+ */
+public struct NostrInboxEvent: Equatable, Hashable, Codable {
+    /**
+     * ID of the (ephemeral) kind `1059` gift wrap event. Use it to
+     * de-duplicate deliveries across relay reconnects and restarts.
+     */
+    public let wrapId: String
+    /**
+     * `created_at` of the gift wrap (NIP-59 randomizes/backdates it)
+     */
+    public let wrapCreatedAt: UInt64
+    /**
+     * Author of the verified seal — the real sender of the rumor
+     */
+    public let senderPubkey: String
+    /**
+     * ID of the rumor, if the sender included one
+     */
+    public let rumorId: String?
+    /**
+     * Kind of the rumor (commonly `14` for chat/DM payloads)
+     */
+    public let rumorKind: UInt16
+    /**
+     * Content of the rumor (e.g. a NUT-18 payment request payload for
+     * kind `14` rumors)
+     */
+    public let rumorContent: String
+    /**
+     * `created_at` of the rumor
+     */
+    public let rumorCreatedAt: UInt64
+    /**
+     * Tags of the rumor
+     */
+    public let rumorTags: [[String]]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * ID of the (ephemeral) kind `1059` gift wrap event. Use it to
+         * de-duplicate deliveries across relay reconnects and restarts.
+         */wrapId: String, 
+        /**
+         * `created_at` of the gift wrap (NIP-59 randomizes/backdates it)
+         */wrapCreatedAt: UInt64, 
+        /**
+         * Author of the verified seal — the real sender of the rumor
+         */senderPubkey: String, 
+        /**
+         * ID of the rumor, if the sender included one
+         */rumorId: String?, 
+        /**
+         * Kind of the rumor (commonly `14` for chat/DM payloads)
+         */rumorKind: UInt16, 
+        /**
+         * Content of the rumor (e.g. a NUT-18 payment request payload for
+         * kind `14` rumors)
+         */rumorContent: String, 
+        /**
+         * `created_at` of the rumor
+         */rumorCreatedAt: UInt64, 
+        /**
+         * Tags of the rumor
+         */rumorTags: [[String]]) {
+        self.wrapId = wrapId
+        self.wrapCreatedAt = wrapCreatedAt
+        self.senderPubkey = senderPubkey
+        self.rumorId = rumorId
+        self.rumorKind = rumorKind
+        self.rumorContent = rumorContent
+        self.rumorCreatedAt = rumorCreatedAt
+        self.rumorTags = rumorTags
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension NostrInboxEvent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNostrInboxEvent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NostrInboxEvent {
+        return
+            try NostrInboxEvent(
+                wrapId: FfiConverterString.read(from: &buf), 
+                wrapCreatedAt: FfiConverterUInt64.read(from: &buf), 
+                senderPubkey: FfiConverterString.read(from: &buf), 
+                rumorId: FfiConverterOptionString.read(from: &buf), 
+                rumorKind: FfiConverterUInt16.read(from: &buf), 
+                rumorContent: FfiConverterString.read(from: &buf), 
+                rumorCreatedAt: FfiConverterUInt64.read(from: &buf), 
+                rumorTags: FfiConverterSequenceSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NostrInboxEvent, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.wrapId, into: &buf)
+        FfiConverterUInt64.write(value.wrapCreatedAt, into: &buf)
+        FfiConverterString.write(value.senderPubkey, into: &buf)
+        FfiConverterOptionString.write(value.rumorId, into: &buf)
+        FfiConverterUInt16.write(value.rumorKind, into: &buf)
+        FfiConverterString.write(value.rumorContent, into: &buf)
+        FfiConverterUInt64.write(value.rumorCreatedAt, into: &buf)
+        FfiConverterSequenceSequenceString.write(value.rumorTags, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrInboxEvent_lift(_ buf: RustBuffer) throws -> NostrInboxEvent {
+    return try FfiConverterTypeNostrInboxEvent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNostrInboxEvent_lower(_ value: NostrInboxEvent) -> RustBuffer {
+    return FfiConverterTypeNostrInboxEvent.lower(value)
 }
 
 
@@ -15917,7 +17103,7 @@ public struct ProofStateUpdate: Equatable, Hashable, Codable {
     /**
      * Optional witness data
      */
-    public let witness: String?
+    public let witness: Witness?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -15930,7 +17116,7 @@ public struct ProofStateUpdate: Equatable, Hashable, Codable {
          */state: ProofState, 
         /**
          * Optional witness data
-         */witness: String?) {
+         */witness: Witness?) {
         self.y = y
         self.state = state
         self.witness = witness
@@ -15952,14 +17138,14 @@ public struct FfiConverterTypeProofStateUpdate: FfiConverterRustBuffer {
             try ProofStateUpdate(
                 y: FfiConverterString.read(from: &buf), 
                 state: FfiConverterTypeProofState.read(from: &buf), 
-                witness: FfiConverterOptionString.read(from: &buf)
+                witness: FfiConverterOptionTypeWitness.read(from: &buf)
         )
     }
 
     public static func write(_ value: ProofStateUpdate, into buf: inout [UInt8]) {
         FfiConverterString.write(value.y, into: &buf)
         FfiConverterTypeProofState.write(value.state, into: &buf)
-        FfiConverterOptionString.write(value.witness, into: &buf)
+        FfiConverterOptionTypeWitness.write(value.witness, into: &buf)
     }
 }
 
@@ -17829,6 +19015,20 @@ public enum FfiError: Swift.Error, Equatable, Hashable, Codable, Foundation.Loca
          * Human-readable error message
          */errorMessage: String
     )
+    /**
+     * A payment token was created but transport delivery failed.
+     *
+     * The token remains pending. Pass `operation_id` to `Wallet.revoke_send`
+     * to reclaim it if the receiver has not already claimed it.
+     */
+    case PaymentRequestDeliveryFailed(
+        /**
+         * Pending send operation that can be passed to `Wallet.revoke_send`.
+         */operationId: String, 
+        /**
+         * Transport delivery failure.
+         */errorMessage: String
+    )
 
     
 
@@ -17863,6 +19063,10 @@ public struct FfiConverterTypeFfiError: FfiConverterRustBuffer {
         case 2: return .Internal(
             errorMessage: try FfiConverterString.read(from: &buf)
             )
+        case 3: return .PaymentRequestDeliveryFailed(
+            operationId: try FfiConverterString.read(from: &buf), 
+            errorMessage: try FfiConverterString.read(from: &buf)
+            )
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -17883,6 +19087,12 @@ public struct FfiConverterTypeFfiError: FfiConverterRustBuffer {
         
         case let .Internal(errorMessage):
             writeInt(&buf, Int32(2))
+            FfiConverterString.write(errorMessage, into: &buf)
+            
+        
+        case let .PaymentRequestDeliveryFailed(operationId,errorMessage):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(operationId, into: &buf)
             FfiConverterString.write(errorMessage, into: &buf)
             
         }
@@ -22176,6 +23386,94 @@ public func mnemonicToEntropy(mnemonic: String)throws  -> Data  {
 })
 }
 /**
+ * Decrypt a NIP-44 v2 payload
+ *
+ * Derives the conversation key via secp256k1 ECDH between `nostr_secret_key`
+ * and `sender_pubkey` and decrypts the base64-encoded payload.
+ *
+ * # Arguments
+ *
+ * * `nostr_secret_key` - Recipient secret key (hex or bech32 `nsec`)
+ * * `sender_pubkey` - Sender x-only public key (hex, 64 characters)
+ * * `payload` - Base64-encoded NIP-44 v2 payload
+ *
+ * # Errors
+ *
+ * Returns an error if a key is invalid, the payload is malformed, or MAC
+ * verification fails
+ */
+public func nip44Decrypt(nostrSecretKey: String, senderPubkey: String, payload: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_func_nip44_decrypt(
+        FfiConverterString.lower(nostrSecretKey),
+        FfiConverterString.lower(senderPubkey),
+        FfiConverterString.lower(payload),$0
+    )
+})
+}
+/**
+ * Encrypt a message with NIP-44 v2
+ *
+ * Derives the conversation key via secp256k1 ECDH between `nostr_secret_key`
+ * and `recipient_pubkey` and returns the base64-encoded payload.
+ *
+ * # Arguments
+ *
+ * * `nostr_secret_key` - Sender secret key (hex or bech32 `nsec`)
+ * * `recipient_pubkey` - Recipient x-only public key (hex, 64 characters)
+ * * `plaintext` - Message to encrypt
+ *
+ * # Errors
+ *
+ * Returns an error if a key is invalid or encryption fails
+ */
+public func nip44Encrypt(nostrSecretKey: String, recipientPubkey: String, plaintext: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_func_nip44_encrypt(
+        FfiConverterString.lower(nostrSecretKey),
+        FfiConverterString.lower(recipientPubkey),
+        FfiConverterString.lower(plaintext),$0
+    )
+})
+}
+/**
+ * Generate a new random Nostr secret key
+ *
+ * # Returns
+ *
+ * The hex-encoded secret key (64 characters)
+ */
+public func nostrGenerateSecretKey() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_cdk_ffi_fn_func_nostr_generate_secret_key($0
+    )
+})
+}
+/**
+ * Get the public key for a Nostr secret key
+ *
+ * # Arguments
+ *
+ * * `nostr_secret_key` - Nostr secret key. Accepts either:
+ * - Hex-encoded secret key (64 characters)
+ * - Bech32 `nsec` format (e.g., "nsec1...")
+ *
+ * # Returns
+ *
+ * The hex-encoded x-only public key (64 characters)
+ *
+ * # Errors
+ *
+ * Returns an error if the secret key is invalid
+ */
+public func nostrGetPubkey(nostrSecretKey: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+    uniffi_cdk_ffi_fn_func_nostr_get_pubkey(
+        FfiConverterString.lower(nostrSecretKey),$0
+    )
+})
+}
+/**
  * Derive Nostr keys from a wallet seed
  *
  * This function derives the same Nostr keys that a wallet would use for NpubCash
@@ -22595,6 +23893,18 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_func_mnemonic_to_entropy() != 58572) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_func_nip44_decrypt() != 39962) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_func_nip44_encrypt() != 485) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_func_nostr_generate_secret_key() != 13275) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_func_nostr_get_pubkey() != 3969) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_func_npubcash_derive_secret_key_from_seed() != 6473) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -22652,6 +23962,18 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_activesubscription_try_recv() != 39356) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_nostrinbox_pubkey() != 9918) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_nostrinbox_start() != 36353) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_nostrinbox_stop() != 16312) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_nostrinboxlistener_on_event() != 50983) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_nostrwaitinfo_mint_preferred() != 11066) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -22664,10 +23986,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_nostrwaitinfo_relays() != 40910) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_npubcashclient_get_missing_quotes() != 31413) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_npubcashclient_get_quotes() != 64169) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_npubcashclient_get_user_info() != 31487) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_npubcashclient_set_mint_url() != 8738) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_npubcashclient_set_quote_locking() != 61660) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_nwcservice_client_pubkey() != 1577) {
@@ -22799,6 +24130,39 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_preparedmelt_total_fee_with_swap() != 44787) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_cancel() != 42398) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_confirm() != 39918) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_input_fee() != 29609) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_method() != 560) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_method_fee() != 56458) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_mint_url() != 40661) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_operation_id() != 27901) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_payment_amount() != 26016) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_requested_amount() != 46200) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_total_amount() != 63155) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_preparedpaymentrequest_unit() != 44174) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_preparedsend_amount() != 62180) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -22910,7 +24274,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_check_send_status() != 48245) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_method_wallet_claim_npubcash_quotes() != 50606) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_method_wallet_cross_mint_transfer_quote_max() != 41141) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_enable_npubcash() != 16091) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_info() != 41951) {
@@ -22935,6 +24305,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_get_keyset_fees_by_id() != 51180) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_get_npubcash_user_info() != 28646) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_get_pending_sends() != 56442) {
@@ -23000,9 +24373,6 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_mint_url() != 6804) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_pay_request() != 63052) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_cdk_ffi_checksum_method_wallet_prepare_melt() != 18573) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23010,6 +24380,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_prepare_melt_token() != 3555) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_prepare_pay_request() != 31967) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_prepare_send() != 18579) {
@@ -23064,6 +24437,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_swap() != 45250) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_sync_missing_npubcash_quotes() != 17258) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_total_balance() != 37325) {
@@ -23438,6 +24814,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_walletsqlitedatabase_update_saga() != 32010) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_cdk_ffi_checksum_constructor_nostrinbox_new() != 44300) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_cdk_ffi_checksum_constructor_npubcashclient_new() != 49637) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23484,6 +24863,7 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
 
+    uniffiCallbackInitNostrInboxListener()
     uniffiCallbackInitWalletDatabase()
     return InitializationResult.ok
 }()
