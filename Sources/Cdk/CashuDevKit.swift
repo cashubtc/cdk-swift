@@ -14858,7 +14858,7 @@ public struct MintMethodSettings: Equatable, Hashable, Codable {
     public let minAmount: Amount?
     public let maxAmount: Amount?
     /**
-     * For bolt11, whether mint supports setting invoice description
+     * For bolt11/bolt12, whether mint supports setting invoice/offer description
      */
     public let description: Bool?
 
@@ -14872,7 +14872,7 @@ public struct MintMethodSettings: Equatable, Hashable, Codable {
          * `_` and `-` with spaces and title-casing each word.
          */methodName: String?, minAmount: Amount?, maxAmount: Amount?, 
         /**
-         * For bolt11, whether mint supports setting invoice description
+         * For bolt11/bolt12, whether mint supports setting invoice/offer description
          */description: Bool?) {
         self.method = method
         self.unit = unit
