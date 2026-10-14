@@ -4600,6 +4600,7 @@ public protocol WalletProtocol: AnyObject, Sendable {
     
     /**
      * Check melt quote status and attempt to complete any in-progress saga.
+     * Returns the persisted database version and ownership after status/recovery writes.
      */
     func checkMeltQuoteStatus(quoteId: String) async throws  -> MeltQuote
     
@@ -4634,6 +4635,11 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * **Note:** The mint quote must be known to the wallet (stored locally) for this
      * function to work. If the quote is not stored locally, use `fetch_mint_quote`
      * instead.
+     *
+     * Returns the persisted database version and ownership after status/recovery writes.
+     *
+     * # Errors
+     * Returns an error for a mismatched response quote ID or a failed database reload.
      */
     func checkMintQuoteStatus(quoteId: String) async throws  -> MintQuote
     
@@ -4703,6 +4709,10 @@ public protocol WalletProtocol: AnyObject, Sendable {
      *
      * Works with all payment methods (Bolt11, Bolt12, and custom payment methods).
      *
+     * A quote not created by this wallet instance, such as one fetched after
+     * restoring from seed, is stored without its NUT-20 signing key. Use
+     * `fetch_mint_quote_with_key_search` to recover that key.
+     *
      * # Arguments
      * * `quote_id` - The ID of the quote to fetch
      * * `payment_method` - The payment method for the quote. Required if the quote
@@ -4710,6 +4720,24 @@ public protocol WalletProtocol: AnyObject, Sendable {
      * payment method will be used and this parameter is ignored.
      */
     func fetchMintQuote(quoteId: String, paymentMethod: PaymentMethod?) async throws  -> MintQuote
+    
+    /**
+     * Fetch a mint quote and try to recover its NUT-20 signing key from the seed.
+     *
+     * Use after restoring a wallet from seed to claim a quote whose ID is known
+     * but whose signing key was lost. Searches the wallet's NUT-20 keys at
+     * counters `0..key_search_limit` for the public key the mint reports and
+     * stores the match, advancing the wallet's NUT-20 counter past it.
+     *
+     * Succeeds even if no key matched. Check `secret_key` on the returned quote:
+     * if set, call `mint`; if not, retry with a larger limit. The limit must
+     * exceed the index the original wallet used, which is below the number of
+     * locked quotes it created. Zero disables the search. Existing keys and
+     * NpubCash quotes are left unchanged, and random keys cannot be recovered.
+     *
+     * This performs network I/O and writes the quote and counter to the local store.
+     */
+    func fetchMintQuoteWithKeySearch(quoteId: String, paymentMethod: PaymentMethod?, keySearchLimit: UInt32) async throws  -> MintQuote
     
     /**
      * Finalize pending melt operations for this wallet.
@@ -5312,6 +5340,7 @@ open func checkAllPendingProofs()async throws  -> Amount  {
     
     /**
      * Check melt quote status and attempt to complete any in-progress saga.
+     * Returns the persisted database version and ownership after status/recovery writes.
      */
 open func checkMeltQuoteStatus(quoteId: String)async throws  -> MeltQuote  {
     return
@@ -5376,6 +5405,11 @@ open func checkMintQuote(quoteId: String)async throws  -> MintQuote  {
      * **Note:** The mint quote must be known to the wallet (stored locally) for this
      * function to work. If the quote is not stored locally, use `fetch_mint_quote`
      * instead.
+     *
+     * Returns the persisted database version and ownership after status/recovery writes.
+     *
+     * # Errors
+     * Returns an error for a mismatched response quote ID or a failed database reload.
      */
 open func checkMintQuoteStatus(quoteId: String)async throws  -> MintQuote  {
     return
@@ -5550,6 +5584,10 @@ open func fetchMintInfo()async throws  -> MintInfo?  {
      *
      * Works with all payment methods (Bolt11, Bolt12, and custom payment methods).
      *
+     * A quote not created by this wallet instance, such as one fetched after
+     * restoring from seed, is stored without its NUT-20 signing key. Use
+     * `fetch_mint_quote_with_key_search` to recover that key.
+     *
      * # Arguments
      * * `quote_id` - The ID of the quote to fetch
      * * `payment_method` - The payment method for the quote. Required if the quote
@@ -5563,6 +5601,39 @@ open func fetchMintQuote(quoteId: String, paymentMethod: PaymentMethod?)async th
                 uniffi_cdk_ffi_fn_method_wallet_fetch_mint_quote(
                     self.uniffiCloneHandle(),
                     FfiConverterString.lower(quoteId),FfiConverterOptionTypePaymentMethod.lower(paymentMethod)
+                )
+            },
+            pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_cdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_cdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMintQuote_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Fetch a mint quote and try to recover its NUT-20 signing key from the seed.
+     *
+     * Use after restoring a wallet from seed to claim a quote whose ID is known
+     * but whose signing key was lost. Searches the wallet's NUT-20 keys at
+     * counters `0..key_search_limit` for the public key the mint reports and
+     * stores the match, advancing the wallet's NUT-20 counter past it.
+     *
+     * Succeeds even if no key matched. Check `secret_key` on the returned quote:
+     * if set, call `mint`; if not, retry with a larger limit. The limit must
+     * exceed the index the original wallet used, which is below the number of
+     * locked quotes it created. Zero disables the search. Existing keys and
+     * NpubCash quotes are left unchanged, and random keys cannot be recovered.
+     *
+     * This performs network I/O and writes the quote and counter to the local store.
+     */
+open func fetchMintQuoteWithKeySearch(quoteId: String, paymentMethod: PaymentMethod?, keySearchLimit: UInt32)async throws  -> MintQuote  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_cdk_ffi_fn_method_wallet_fetch_mint_quote_with_key_search(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(quoteId),FfiConverterOptionTypePaymentMethod.lower(paymentMethod),FfiConverterUInt32.lower(keySearchLimit)
                 )
             },
             pollFunc: ffi_cdk_ffi_rust_future_poll_rust_buffer,
@@ -24277,13 +24348,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_check_all_pending_proofs() != 29982) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_check_melt_quote_status() != 42910) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_check_melt_quote_status() != 53868) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_check_mint_quote() != 13747) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_check_mint_quote_status() != 4397) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_check_mint_quote_status() != 47393) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_check_proofs_spent() != 31942) {
@@ -24304,7 +24375,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_info() != 41951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_quote() != 52100) {
+    if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_quote() != 36215) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_cdk_ffi_checksum_method_wallet_fetch_mint_quote_with_key_search() != 7587) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_cdk_ffi_checksum_method_wallet_finalize_pending_melts() != 37779) {
